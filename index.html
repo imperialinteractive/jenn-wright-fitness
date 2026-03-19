@@ -638,9 +638,98 @@
     .nav-tabs { gap: 2px; }
     .nav-tab { padding: 7px 10px; font-size: 12px; }
   }
+
+  /* ── LOGIN SCREEN ── */
+  #screen-login {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--dark) 0%, #4a3228 100%);
+    padding: 24px;
+  }
+  .login-box {
+    background: white;
+    border-radius: 24px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.3);
+  }
+  .login-icon {
+    width: 72px;
+    height: 72px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 20px;
+  }
+  .login-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .login-sub {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 28px;
+  }
+  .login-error {
+    background: #fee2e2;
+    color: #dc2626;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .login-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+  }
+  .login-btn:hover { background: var(--accent-dark); }
+  .login-footer {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--text-light);
+  }
 </style>
 </head>
 <body>
+
+<!-- ═══════════════════════════════════════════
+     LOGIN SCREEN
+════════════════════════════════════════════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-box">
+    <div class="login-icon">💪</div>
+    <div class="login-title">Jenn Wright Fitness</div>
+    <div class="login-sub">Trainer portal — private access only</div>
+    <div class="login-error" id="login-error">Incorrect password. Try again.</div>
+    <div class="form-group" style="text-align:left">
+      <label class="form-label">Password</label>
+      <input class="form-input" id="login-password" type="password" placeholder="Enter your password"
+        onkeydown="if(event.key==='Enter') doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Sign In →</button>
+    <div class="login-footer">Summerland, BC · <a href="https://jennwrightfitness.com" target="_blank" style="color:var(--accent)">jennwrightfitness.com</a></div>
+  </div>
+</div>
 
 <!-- ═══════════════════════════════════════════
      ADMIN SIDE — Jenn's Dashboard
@@ -656,10 +745,13 @@
         <div class="nav-logo-sub">Trainer Portal</div>
       </div>
     </div>
-    <div class="nav-tabs">
-      <button class="nav-tab active" onclick="showAdminTab('dashboard')">Dashboard</button>
-      <button class="nav-tab" onclick="showAdminTab('programs')">Programs</button>
-      <button class="nav-tab" onclick="showAdminTab('clients')">Clients</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="nav-tabs">
+        <button class="nav-tab active" onclick="showAdminTab('dashboard')">Dashboard</button>
+        <button class="nav-tab" onclick="showAdminTab('programs')">Programs</button>
+        <button class="nav-tab" onclick="showAdminTab('clients')">Clients</button>
+      </div>
+      <button class="nav-tab" onclick="doLogout()" style="color:rgba(255,255,255,0.5)">Sign Out</button>
     </div>
   </nav>
 
@@ -930,6 +1022,33 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ── AUTH ──
+const ADMIN_PASSWORD = 'jenn2026';
+const AUTH_KEY = 'jwf_authed';
+
+function doLogin() {
+  const pw = document.getElementById('login-password').value;
+  if (pw === ADMIN_PASSWORD) {
+    sessionStorage.setItem(AUTH_KEY, '1');
+    document.getElementById('login-error').style.display = 'none';
+    showScreen('admin');
+    renderDashboard();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-password').focus();
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem(AUTH_KEY);
+  showScreen('login');
+}
+
+function isAuthed() {
+  return sessionStorage.getItem(AUTH_KEY) === '1';
+}
+
 // ── STATE ──
 let programs = JSON.parse(localStorage.getItem('jwf_programs') || '[]');
 let clients = JSON.parse(localStorage.getItem('jwf_clients') || '[]');
@@ -998,6 +1117,15 @@ if (programs.length === 0) {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
+}
+
+function showAdminIfAuthed() {
+  if (isAuthed()) {
+    showScreen('admin');
+    renderDashboard();
+  } else {
+    showScreen('login');
+  }
 }
 
 // ── ADMIN TABS ──
@@ -1416,8 +1544,7 @@ function checkUrlForProgram() {
 
 // ── INIT ──
 if (!checkUrlForProgram()) {
-  showScreen('admin');
-  renderDashboard();
+  showAdminIfAuthed();
 }
 </script>
 </body>
