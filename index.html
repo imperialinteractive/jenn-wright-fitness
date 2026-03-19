@@ -1395,7 +1395,11 @@ function closeShareModal() {
 }
 
 function buildClientLink(id) {
-  return `${location.origin}${location.pathname}?program=${id}`;
+  const p = programs.find(x => x.id === id);
+  const clientSlug = p && p.client
+    ? '&client=' + encodeURIComponent(p.client.replace(/\s+/g, '-'))
+    : '';
+  return `${location.origin}${location.pathname}?program=${id}${clientSlug}`;
 }
 
 function copyShareLink() {
