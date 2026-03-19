@@ -1164,19 +1164,31 @@ function renderProgramsList() {
 }
 
 function programCardHTML(p) {
-  return `<div class="program-card">
-    <div class="program-card-info">
-      <div class="program-card-name">${p.name}</div>
-      <div class="program-card-meta">
-        ${p.client ? `👤 ${p.client} · ` : ''}
-        <span class="badge badge-orange">${p.focus}</span>
-        &nbsp;Week ${p.week || 1} · ${p.exercises.length} exercises
+  const link = buildClientLink(p.id);
+  return `<div class="program-card" style="flex-direction:column;align-items:stretch;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div class="program-card-info">
+        <div class="program-card-name">${p.name}</div>
+        <div class="program-card-meta">
+          ${p.client ? `👤 ${p.client} · ` : '<span style="color:#c8855a">⚠️ No client assigned · </span>'}
+          <span class="badge badge-orange">${p.focus}</span>
+          &nbsp;Week ${p.week || 1} · ${p.exercises.length} exercise${p.exercises.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+      <div class="program-card-actions">
+        <button class="btn btn-sm btn-primary" onclick="previewProgram('${p.id}')">Preview</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProgram('${p.id}')">Delete</button>
       </div>
     </div>
-    <div class="program-card-actions">
-      <button class="btn btn-sm btn-secondary" onclick="shareProgram('${p.id}')">🔗 Share</button>
-      <button class="btn btn-sm btn-primary" onclick="previewProgram('${p.id}')">Preview</button>
-      <button class="btn btn-sm btn-danger" onclick="deleteProgram('${p.id}')">Delete</button>
+    <div style="background:#f0f7f1;border:2px solid #6b8f71;border-radius:10px;padding:10px 14px">
+      <div style="font-size:11px;font-weight:700;color:#6b8f71;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
+        📎 Client Link — send this to ${p.client || 'your client'}
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input readonly value="${link}" style="flex:1;padding:8px 12px;border:2px solid #c8e0cc;border-radius:8px;font-size:12px;font-family:monospace;background:white;color:#3d3028" onclick="this.select()">
+        <button class="btn btn-sm btn-green" onclick="copyLink('${p.id}', this)">Copy</button>
+      </div>
+      <div style="font-size:11px;color:#6b8f71;margin-top:6px">They open this link — no login needed. Their program shows up instantly.</div>
     </div>
   </div>`;
 }
@@ -1388,6 +1400,15 @@ function buildClientLink(id) {
 function copyShareLink() {
   const input = document.getElementById('share-link-display');
   navigator.clipboard.writeText(input.value).then(() => showToast('Link copied! 📎'));
+}
+
+function copyLink(id, btn) {
+  const link = buildClientLink(id);
+  navigator.clipboard.writeText(link).then(() => {
+    btn.textContent = '✓ Copied!';
+    btn.style.background = '#5a7a60';
+    setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; }, 2000);
+  });
 }
 
 function deleteProgram(id) {
