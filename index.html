@@ -31,8 +31,9 @@
   }
 
   /* ── SCREENS ── */
-  .screen { display: none; min-height: 100vh; }
-  .screen.active { display: block; }
+  .screen { display: none !important; min-height: 100vh; }
+  .screen.active { display: block !important; }
+  #screen-login.active { display: flex !important; }
 
   /* ── NAV ── */
   .nav {
@@ -734,7 +735,7 @@
 <!-- ═══════════════════════════════════════════
      ADMIN SIDE — Jenn's Dashboard
 ════════════════════════════════════════════ -->
-<div id="screen-admin" class="screen active">
+<div id="screen-admin" class="screen">
 
   <!-- NAV -->
   <nav class="nav">
