@@ -973,10 +973,17 @@
         <div class="client-meta-label">Focus</div>
       </div>
       <div class="client-meta-item">
-        <div class="client-meta-value" id="client-week">—</div>
+        <div class="client-meta-value" id="client-week-display">—</div>
         <div class="client-meta-label">Week</div>
       </div>
     </div>
+  </div>
+
+  <!-- Week nav bar -->
+  <div id="client-week-nav" style="display:none;background:var(--dark);padding:12px 20px;display:none;align-items:center;justify-content:space-between;gap:12px">
+    <button id="week-prev-btn" onclick="changeWeek(-1)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s">‹ Prev</button>
+    <div id="week-dots" style="display:flex;gap:8px;align-items:center"></div>
+    <button id="week-next-btn" onclick="changeWeek(1)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s">Next ›</button>
   </div>
 
   <div class="content">
@@ -990,11 +997,21 @@
       <div id="client-notes-text" class="text-sm" style="line-height:1.6"></div>
     </div>
 
+    <div id="client-week-label" style="display:none;text-align:center;margin-bottom:16px">
+      <span style="background:var(--accent);color:white;font-size:13px;font-weight:700;padding:6px 18px;border-radius:20px;letter-spacing:0.5px" id="client-week-label-text"></span>
+    </div>
+
     <div id="client-exercises-list"></div>
 
     <button class="program-complete-btn" onclick="showToast('Great work! Session complete 💪')">
       ✅ Mark Session Complete
     </button>
+
+    <!-- Week nav bottom -->
+    <div id="client-week-nav-bottom" style="display:none;margin-top:16px;display:none;justify-content:space-between;gap:12px">
+      <button id="week-prev-btn2" onclick="changeWeek(-1)" style="flex:1;padding:14px;background:white;border:2px solid var(--accent);color:var(--accent);border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer">‹ Previous Week</button>
+      <button id="week-next-btn2" onclick="changeWeek(1)" style="flex:1;padding:14px;background:var(--accent);border:none;color:white;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer">Next Week ›</button>
+    </div>
 
     <div style="text-align:center;margin-top:20px;padding-bottom:32px">
       <div class="text-sm text-muted">Powered by <strong>Jenn Wright Fitness</strong></div>
@@ -1041,15 +1058,9 @@
           </select>
         </div>
       </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Week</label>
-          <input class="form-input" id="prog-week" type="number" min="1" placeholder="1">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Days Per Week</label>
-          <input class="form-input" id="prog-days" type="number" min="1" max="7" placeholder="3">
-        </div>
+      <div class="form-group">
+        <label class="form-label">Days Per Week</label>
+        <input class="form-input" id="prog-days" type="number" min="1" max="7" placeholder="3" style="max-width:140px">
       </div>
       <div class="form-group">
         <label class="form-label">Program Notes (shown to client)</label>
@@ -1063,9 +1074,18 @@
 
     <!-- Step 2: Exercises -->
     <div id="step-exercises" style="display:none">
+      <!-- Week tabs -->
       <div style="margin-bottom:16px">
-        <div class="bold" style="margin-bottom:4px">✏️ Exercises</div>
-        <div class="text-sm text-muted">Add exercises with sets, reps, and optional video/image links.</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div class="bold">📅 Weeks</div>
+          <button class="btn btn-sm btn-ghost" onclick="addWeek()">+ Add Week</button>
+        </div>
+        <div id="week-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px"></div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <div class="bold" style="margin-bottom:2px">✏️ Exercises — <span id="current-week-label">Week 1</span></div>
+        <div class="text-sm text-muted">Type to search the exercise bank. Add photo or YouTube link for each exercise.</div>
       </div>
 
       <div id="exercises-builder"></div>
@@ -1171,6 +1191,9 @@ let clients = JSON.parse(localStorage.getItem('jwf_clients') || '[]');
 let currentProgram = null;
 let editingProgramId = null;
 let lastSavedProgramId = null;
+let currentWeekIdx = 0;   // which week is active in the builder
+let clientWeekIdx = 0;    // which week the client is viewing
+let clientProgram = null; // program currently shown in client view
 
 // ── SAMPLE DATA (demo) ──
 if (programs.length === 0) {
@@ -1330,7 +1353,7 @@ function programCardHTML(p) {
         <div class="program-card-meta">
           ${p.client ? `👤 ${p.client} · ` : '<span style="color:#c8855a">⚠️ No client assigned · </span>'}
           <span class="badge badge-orange">${p.focus}</span>
-          &nbsp;Week ${p.week || 1} · ${p.exercises.length} exercise${p.exercises.length !== 1 ? 's' : ''}
+          &nbsp;${p.weeks ? p.weeks.length + ' week' + (p.weeks.length !== 1 ? 's' : '') : 'Week 1'} · ${p.weeks ? p.weeks.reduce((a,w)=>a+w.exercises.length,0) : (p.exercises||[]).length} exercises
         </div>
       </div>
       <div class="program-card-actions">
@@ -1403,7 +1426,7 @@ function openProgramModal(id = null) {
     document.getElementById('prog-week').value = '';
     document.getElementById('prog-days').value = '';
     document.getElementById('prog-notes').value = '';
-    currentProgram = { exercises: [] };
+    currentProgram = { weeks: [{ label: 'Week 1', exercises: [] }] };
   }
 
   document.getElementById('modal-program').classList.add('active');
@@ -1419,13 +1442,44 @@ function goToExercises() {
   currentProgram.name = name;
   currentProgram.client = document.getElementById('prog-client').value;
   currentProgram.focus = document.getElementById('prog-focus').value;
-  currentProgram.week = document.getElementById('prog-week').value || 1;
   currentProgram.days = document.getElementById('prog-days').value || 3;
   currentProgram.notes = document.getElementById('prog-notes').value;
 
+  // Migrate old single-week programs to weeks array
+  if (!currentProgram.weeks) {
+    currentProgram.weeks = [{ label: 'Week 1', exercises: currentProgram.exercises || [] }];
+    delete currentProgram.exercises;
+  }
+  currentWeekIdx = 0;
+
   document.getElementById('step-info').style.display = 'none';
   document.getElementById('step-exercises').style.display = 'block';
+  renderWeekTabs();
   renderExercisesBuilder();
+}
+
+// ── WEEK MANAGEMENT (builder) ──
+function renderWeekTabs() {
+  const tabs = document.getElementById('week-tabs');
+  tabs.innerHTML = currentProgram.weeks.map((w, i) =>
+    `<button onclick="switchBuilderWeek(${i})" style="padding:7px 16px;border-radius:20px;border:2px solid ${i===currentWeekIdx?'var(--accent)':'#e0d6cc'};background:${i===currentWeekIdx?'var(--accent)':'white'};color:${i===currentWeekIdx?'white':'var(--text)'};font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s">${w.label}</button>`
+  ).join('');
+  document.getElementById('current-week-label').textContent = currentProgram.weeks[currentWeekIdx].label;
+}
+
+function switchBuilderWeek(i) {
+  currentWeekIdx = i;
+  renderWeekTabs();
+  renderExercisesBuilder();
+}
+
+function addWeek() {
+  const n = currentProgram.weeks.length + 1;
+  currentProgram.weeks.push({ label: `Week ${n}`, exercises: [] });
+  currentWeekIdx = currentProgram.weeks.length - 1;
+  renderWeekTabs();
+  renderExercisesBuilder();
+  showToast(`Week ${n} added`);
 }
 
 function goBackToInfo() {
@@ -1523,7 +1577,8 @@ function showExerciseSuggestions(i, query) {
 }
 
 function selectExercise(i, ex) {
-  currentProgram.exercises[i] = { ...currentProgram.exercises[i], ...ex, imageUrl: currentProgram.exercises[i].imageUrl || '', videoUrl: currentProgram.exercises[i].videoUrl || '', imageData: currentProgram.exercises[i].imageData || '' };
+  const exs = currentWeekExercises();
+  exs[i] = { ...exs[i], ...ex, imageUrl: exs[i].imageUrl || '', videoUrl: exs[i].videoUrl || '', imageData: exs[i].imageData || '' };
   renderExercisesBuilder();
   // scroll back
   setTimeout(() => {
@@ -1538,8 +1593,8 @@ function handleImageUpload(i, input) {
   if (file.size > 5 * 1024 * 1024) { showToast('Image too large — max 5MB'); return; }
   const reader = new FileReader();
   reader.onload = e => {
-    currentProgram.exercises[i].imageData = e.target.result;
-    currentProgram.exercises[i].imageUrl = '';
+    currentWeekExercises()[i].imageData = e.target.result;
+    currentWeekExercises()[i].imageUrl = '';
     const preview = document.getElementById(`ex-img-preview-${i}`);
     if (preview) {
       preview.src = e.target.result;
@@ -1551,14 +1606,19 @@ function handleImageUpload(i, input) {
 }
 
 // ── EXERCISE BUILDER ──
+function currentWeekExercises() {
+  return currentProgram.weeks[currentWeekIdx].exercises;
+}
+
 function renderExercisesBuilder() {
   const el = document.getElementById('exercises-builder');
-  if (currentProgram.exercises.length === 0) {
+  const exs = currentWeekExercises();
+  if (exs.length === 0) {
     el.innerHTML = '';
     addExercise();
     return;
   }
-  el.innerHTML = currentProgram.exercises.map((ex, i) => exerciseBuilderHTML(ex, i)).join('');
+  el.innerHTML = exs.map((ex, i) => exerciseBuilderHTML(ex, i)).join('');
 }
 
 function exerciseBuilderHTML(ex, i) {
@@ -1625,7 +1685,7 @@ function exerciseBuilderHTML(ex, i) {
 }
 
 function addExercise() {
-  currentProgram.exercises.push({ name: '', sets: '', reps: '', rest: '60s', videoUrl: '', imageUrl: '', imageData: '', notes: '' });
+  currentWeekExercises().push({ name: '', sets: '', reps: '', rest: '60s', videoUrl: '', imageUrl: '', imageData: '', notes: '' });
   renderExercisesBuilder();
   setTimeout(() => {
     const items = document.querySelectorAll('.exercise-item');
@@ -1634,12 +1694,12 @@ function addExercise() {
 }
 
 function removeExercise(i) {
-  currentProgram.exercises.splice(i, 1);
+  currentWeekExercises().splice(i, 1);
   renderExercisesBuilder();
 }
 
 function updateExercise(i, field, val) {
-  currentProgram.exercises[i][field] = val;
+  currentWeekExercises()[i][field] = val;
   if (field === 'name') {
     const display = document.querySelector(`#ex-item-${i} .exercise-name-display`);
     if (display) display.textContent = val || 'New Exercise';
@@ -1648,9 +1708,13 @@ function updateExercise(i, field, val) {
 
 // ── SAVE PROGRAM ──
 function saveProgram() {
-  const validExercises = currentProgram.exercises.filter(e => e.name.trim());
-  if (validExercises.length === 0) { showToast('Add at least one exercise'); return; }
-  currentProgram.exercises = validExercises;
+  // Validate at least one exercise in any week
+  const anyExercise = currentProgram.weeks.some(w => w.exercises.some(e => e.name.trim()));
+  if (!anyExercise) { showToast('Add at least one exercise'); return; }
+  // Clean empty exercise names per week
+  currentProgram.weeks = currentProgram.weeks.map(w => ({
+    ...w, exercises: w.exercises.filter(e => e.name.trim())
+  }));
 
   if (editingProgramId) {
     const idx = programs.findIndex(p => p.id === editingProgramId);
@@ -1763,12 +1827,21 @@ function previewClient() {
 }
 
 // ── CLIENT VIEW ──
-function renderClientView(p) {
+function renderClientView(p, weekIdx) {
+  clientProgram = p;
+  // Normalise old single-week programs
+  if (!p.weeks) {
+    p.weeks = [{ label: 'Week 1', exercises: p.exercises || [] }];
+  }
+  clientWeekIdx = weekIdx !== undefined ? weekIdx : 0;
+
   document.getElementById('client-program-name').textContent = p.name;
   document.getElementById('client-client-name').textContent = p.client ? `For ${p.client}` : '';
-  document.getElementById('client-exercises-count').textContent = p.exercises.length;
   document.getElementById('client-focus').textContent = p.focus || '—';
-  document.getElementById('client-week').textContent = p.week ? `W${p.week}` : '—';
+
+  const week = p.weeks[clientWeekIdx];
+  document.getElementById('client-exercises-count').textContent = week.exercises.length;
+  document.getElementById('client-week-display').textContent = `W${clientWeekIdx + 1}`;
 
   if (p.notes) {
     document.getElementById('client-notes-box').style.display = 'block';
@@ -1777,8 +1850,44 @@ function renderClientView(p) {
     document.getElementById('client-notes-box').style.display = 'none';
   }
 
+  // Week navigation
+  const hasMultiWeeks = p.weeks.length > 1;
+  const topNav = document.getElementById('client-week-nav');
+  const bottomNav = document.getElementById('client-week-nav-bottom');
+  const weekLabel = document.getElementById('client-week-label');
+
+  if (hasMultiWeeks) {
+    topNav.style.display = 'flex';
+    bottomNav.style.display = 'flex';
+    weekLabel.style.display = 'block';
+
+    // Dots
+    document.getElementById('week-dots').innerHTML = p.weeks.map((w, i) =>
+      `<div onclick="changeWeek(${i - clientWeekIdx})" style="width:${i===clientWeekIdx?'24px':'8px'};height:8px;border-radius:4px;background:${i===clientWeekIdx?'var(--accent)':'rgba(255,255,255,0.35)'};cursor:pointer;transition:all 0.3s"></div>`
+    ).join('');
+
+    document.getElementById('client-week-label-text').textContent = week.label;
+    document.getElementById('week-prev-btn').style.opacity = clientWeekIdx === 0 ? '0.3' : '1';
+    document.getElementById('week-next-btn').style.opacity = clientWeekIdx === p.weeks.length - 1 ? '0.3' : '1';
+    document.getElementById('week-prev-btn2').style.display = clientWeekIdx === 0 ? 'none' : 'block';
+    document.getElementById('week-next-btn2').style.display = clientWeekIdx === p.weeks.length - 1 ? 'none' : 'block';
+  } else {
+    topNav.style.display = 'none';
+    bottomNav.style.display = 'none';
+    weekLabel.style.display = 'none';
+  }
+
   const list = document.getElementById('client-exercises-list');
-  list.innerHTML = p.exercises.map((ex, i) => clientExerciseHTML(ex, i)).join('');
+  list.innerHTML = week.exercises.map((ex, i) => clientExerciseHTML(ex, i)).join('');
+  // Scroll exercises back to top on week change
+  list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function changeWeek(delta) {
+  if (!clientProgram) return;
+  const newIdx = clientWeekIdx + delta;
+  if (newIdx < 0 || newIdx >= clientProgram.weeks.length) return;
+  renderClientView(clientProgram, newIdx);
 }
 
 function clientExerciseHTML(ex, i) {
