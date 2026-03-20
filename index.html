@@ -1588,20 +1588,31 @@ function closeProgramForClient(clientName) {
   }, 100);
 }
 
+function openMailto(to, subject, body) {
+  const a = document.createElement('a');
+  a.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 function emailClientFromProfile() {
   const c = clients.find(x => x.id === viewingClientId);
   if (!c || !c.email) return;
-  const subject = encodeURIComponent('Checking in — Jenn Wright Fitness');
-  const body = encodeURIComponent(`Hi ${c.name.split(' ')[0]},\n\nJust checking in on your progress!\n\nLet me know how things are going.\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`);
-  window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
+  openMailto(c.email,
+    'Checking in — Jenn Wright Fitness',
+    `Hi ${c.name.split(' ')[0]},\n\nJust checking in on your progress!\n\nLet me know how things are going.\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`
+  );
 }
 
 function emailIntakeForm() {
   const c = clients.find(x => x.id === viewingClientId);
   if (!c || !c.email) return;
-  const subject = encodeURIComponent('Health Intake Form — Jenn Wright Fitness');
-  const body = encodeURIComponent(`Hi ${c.name.split(' ')[0]},\n\nPlease fill out the attached health intake form before our first session.\n\nKey information to include:\n• Any past injuries or surgeries\n• Current medications\n• Medical conditions relevant to exercise\n• Your current fitness goals\n• Emergency contact\n\nYou can reply directly to this email with your answers, or we can go through it together at our first session.\n\nLooking forward to working with you!\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`);
-  window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
+  openMailto(c.email,
+    'Health Intake Form — Jenn Wright Fitness',
+    `Hi ${c.name.split(' ')[0]},\n\nPlease fill out the attached health intake form before our first session.\n\nKey information to include:\n• Any past injuries or surgeries\n• Current medications\n• Medical conditions relevant to exercise\n• Your current fitness goals\n• Emergency contact\n\nYou can reply directly to this email with your answers, or we can go through it together at our first session.\n\nLooking forward to working with you!\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`
+  );
 }
 
 // ── PROGRAM MODAL ──
@@ -1976,17 +1987,19 @@ function emailClientLink() {
   if (!p) return;
   const link = buildClientLink(p.id);
   const clientEmail = p.client ? (clients.find(c => c.name === p.client) || {}).email || '' : '';
+  const firstName = p.client ? p.client.split(' ')[0] : 'there';
+  const totalExercises = p.weeks ? p.weeks.reduce((a,w) => a + w.exercises.length, 0) : 0;
   const subject = encodeURIComponent(`Your Program from Jenn Wright Fitness — ${p.name}`);
   const body = encodeURIComponent(
-`Hi ${p.client || 'there'},
+`Hi ${firstName},
 
 Your exercise program is ready! Tap the link below to view it anytime — no login needed.
 
-👉 ${link}
+${link}
 
 Program: ${p.name}
-Focus: ${p.focus}${p.week ? ` · Week ${p.week}` : ''}
-Exercises: ${p.exercises.length}
+Focus: ${p.focus}
+Weeks: ${p.weeks ? p.weeks.length : 1} | Exercises: ${totalExercises}
 ${p.notes ? `\nNotes from Jenn:\n${p.notes}\n` : ''}
 Don't hesitate to reach out if you have any questions!
 
@@ -1994,13 +2007,21 @@ Jenn Wright
 Jenn Wright Fitness — Summerland, BC
 jennwrightfitness.com`
   );
-  window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
+  const mailto = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
+  const a = document.createElement('a');
+  a.href = mailto;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 function quickEmailLink(id) {
   lastSavedProgramId = id;
   emailClientLink();
 }
+
+
 
 function copyLink(id, btn) {
   const link = buildClientLink(id);
