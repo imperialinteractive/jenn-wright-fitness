@@ -38,20 +38,23 @@
   /* ── NAV ── */
   .nav {
     background: var(--dark);
-    padding: 0 20px;
+    padding: 0 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 60px;
+    height: 56px;
     position: sticky;
     top: 0;
     z-index: 100;
+    gap: 8px;
   }
   .nav-logo {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     color: white;
+    flex-shrink: 0;
+    min-width: 0;
   }
   .nav-logo-icon {
     width: 30px;
@@ -640,8 +643,11 @@
     .form-row, .form-row-3 { grid-template-columns: 1fr; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .hero h1 { font-size: 26px; }
-    .nav-tabs { gap: 2px; }
-    .nav-tab { padding: 7px 10px; font-size: 12px; }
+    .nav-tabs { gap: 1px; }
+    .nav-tab { padding: 6px 8px; font-size: 11px; }
+    .nav-logo-sub { display: none; }
+    .nav-logo-text { font-size: 12px; }
+    .nav-logo-icon { width: 26px; height: 26px; font-size: 13px; }
   }
 
   /* ── LOGIN SCREEN ── */
