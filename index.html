@@ -666,6 +666,95 @@
     color: white;
   }
 
+  /* ── PROGRESS TRACKING ── */
+  .progress-section {
+    border-top: 1px solid #f0ebe3;
+    padding: 14px 20px 16px;
+    background: #faf7f4;
+  }
+  .progress-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .progress-log-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .progress-input {
+    padding: 8px 10px;
+    border: 2px solid #e8e0d5;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: white;
+    width: 100%;
+    text-align: center;
+  }
+  .progress-input:focus { outline: none; border-color: var(--accent); }
+  .progress-input::placeholder { color: #b0a89e; font-size: 12px; }
+  .progress-log-btn {
+    padding: 8px 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .progress-history {
+    margin-top: 10px;
+  }
+  .progress-history-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .progress-history-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: white;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    font-size: 13px;
+  }
+  .progress-history-date { color: var(--text-light); font-size: 11px; }
+  .progress-history-values { font-weight: 700; color: var(--text); }
+  .progress-best {
+    display: inline-block;
+    background: var(--green-light);
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 6px;
+  }
+  .session-complete-banner {
+    background: var(--green);
+    color: white;
+    border-radius: var(--radius);
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .session-complete-banner h3 { font-size: 18px; margin-bottom:4px; }
+  .session-complete-banner p { font-size: 13px; opacity: 0.9; }
+
   /* ── UTILITY ── */
   .flex { display: flex; }
   .gap-8 { gap: 8px; }
@@ -1013,9 +1102,14 @@
       <span style="background:var(--accent);color:white;font-size:13px;font-weight:700;padding:6px 18px;border-radius:20px;letter-spacing:0.5px" id="client-week-label-text"></span>
     </div>
 
+    <div class="session-complete-banner" id="session-complete-banner">
+      <h3>🎉 Session Complete!</h3>
+      <p>Great work! Your progress has been saved.</p>
+    </div>
+
     <div id="client-exercises-list"></div>
 
-    <button class="program-complete-btn" onclick="showToast('Great work! Session complete 💪')">
+    <button class="program-complete-btn" onclick="completeSession()">
       ✅ Mark Session Complete
     </button>
 
@@ -2120,6 +2214,76 @@ function changeWeek(delta) {
   renderClientView(clientProgram, newIdx);
 }
 
+// ── PROGRESS TRACKING ──
+function getProgressKey(programId, weekIdx, exIdx) {
+  return `jwf_progress_${programId}_w${weekIdx}_e${exIdx}`;
+}
+
+function getProgressLog(programId, weekIdx, exIdx) {
+  return JSON.parse(localStorage.getItem(getProgressKey(programId, weekIdx, exIdx)) || '[]');
+}
+
+function saveProgressEntry(programId, weekIdx, exIdx, sets, reps, weight, notes) {
+  const key = getProgressKey(programId, weekIdx, exIdx);
+  const log = getProgressLog(programId, weekIdx, exIdx);
+  log.unshift({
+    date: new Date().toISOString(),
+    sets, reps, weight, notes
+  });
+  // Keep last 10 entries
+  localStorage.setItem(key, JSON.stringify(log.slice(0, 10)));
+}
+
+function logExercise(programId, weekIdx, exIdx) {
+  const sets = document.getElementById(`log-sets-${exIdx}`).value.trim();
+  const reps = document.getElementById(`log-reps-${exIdx}`).value.trim();
+  const weight = document.getElementById(`log-weight-${exIdx}`).value.trim();
+  const notes = document.getElementById(`log-notes-${exIdx}`).value.trim();
+  if (!sets && !reps && !weight) { showToast('Enter at least one value to log'); return; }
+  saveProgressEntry(programId, weekIdx, exIdx, sets, reps, weight, notes);
+  // Re-render just this exercise's history
+  const histEl = document.getElementById(`progress-history-${exIdx}`);
+  if (histEl) histEl.outerHTML = progressHistoryHTML(programId, weekIdx, exIdx);
+  // Clear inputs
+  ['sets','reps','weight','notes'].forEach(f => {
+    const el = document.getElementById(`log-${f}-${exIdx}`);
+    if (el) el.value = '';
+  });
+  showToast('Logged! 💪');
+}
+
+function progressHistoryHTML(programId, weekIdx, exIdx) {
+  const log = getProgressLog(programId, weekIdx, exIdx);
+  if (!log.length) return `<div id="progress-history-${exIdx}"></div>`;
+
+  // Find best weight
+  const weights = log.map(e => parseFloat(e.weight)).filter(w => !isNaN(w));
+  const bestWeight = weights.length ? Math.max(...weights) : null;
+
+  return `<div id="progress-history-${exIdx}" class="progress-history">
+    <div class="progress-history-title">📈 History</div>
+    ${log.slice(0,5).map(e => {
+      const d = new Date(e.date);
+      const dateStr = d.toLocaleDateString('en-CA', { month:'short', day:'numeric' });
+      const isBest = bestWeight !== null && parseFloat(e.weight) === bestWeight;
+      return `<div class="progress-history-row">
+        <span class="progress-history-values">
+          ${e.sets ? `${e.sets} sets` : ''}${e.reps ? ` × ${e.reps}` : ''}${e.weight ? ` @ ${e.weight}` : ''}
+          ${isBest && e.weight ? `<span class="progress-best">🏆 PR</span>` : ''}
+        </span>
+        <span class="progress-history-date">${dateStr}${e.notes ? ` · ${e.notes}` : ''}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function completeSession() {
+  const banner = document.getElementById('session-complete-banner');
+  banner.style.display = 'block';
+  banner.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => { banner.style.display = 'none'; }, 4000);
+}
+
 function clientExerciseHTML(ex, i) {
   let mediaHTML = '';
   if (ex.videoUrl) {
@@ -2146,6 +2310,10 @@ function clientExerciseHTML(ex, i) {
   if (ex.reps) stats.push({ v: ex.reps, l: 'Reps' });
   if (ex.rest) stats.push({ v: ex.rest, l: 'Rest' });
 
+  const pId = clientProgram ? clientProgram.id : '';
+  const wIdx = clientWeekIdx;
+  const history = progressHistoryHTML(pId, wIdx, i);
+
   return `<div class="ex-card">
     <div class="ex-card-header">
       <div class="ex-card-num">${i + 1}</div>
@@ -2162,6 +2330,17 @@ function clientExerciseHTML(ex, i) {
     <div class="ex-card-body">
       ${stats.length ? `<div class="ex-card-stats">${stats.map(s => `<div class="ex-stat"><div class="ex-stat-value">${s.v}</div><div class="ex-stat-label">${s.l}</div></div>`).join('')}</div>` : ''}
       ${ex.notes ? `<div class="ex-card-note"><div class="ex-card-note-label">💬 Jenn's Notes</div>${ex.notes}</div>` : ''}
+    </div>
+    <div class="progress-section">
+      <div class="progress-section-title">📊 Log Today's Sets</div>
+      <div class="progress-log-row">
+        <input class="progress-input" id="log-sets-${i}" type="text" placeholder="Sets">
+        <input class="progress-input" id="log-reps-${i}" type="text" placeholder="Reps">
+        <input class="progress-input" id="log-weight-${i}" type="text" placeholder="Weight">
+        <button class="progress-log-btn" onclick="logExercise('${pId}',${wIdx},${i})">Log</button>
+      </div>
+      <input class="progress-input" id="log-notes-${i}" type="text" placeholder="Optional note (e.g. felt strong, used band...)" style="width:100%;margin-bottom:8px;text-align:left">
+      ${history}
     </div>
   </div>`;
 }
