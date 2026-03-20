@@ -1325,6 +1325,13 @@
       <label class="form-label">Notes (optional)</label>
       <textarea class="form-textarea" id="client-notes-input" placeholder="Quick notes..."></textarea>
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text)">
+        <input type="checkbox" id="client-send-parq" style="width:16px;height:16px;accent-color:var(--accent)">
+        Send PAR-Q &amp; Health Intake Form by email after saving
+      </label>
+      <div style="font-size:11px;color:var(--text-light);margin-top:4px;margin-left:24px">Opens your email app with the full questionnaire pre-written. Client replies with their answers.</div>
+    </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
       <button class="btn btn-secondary" onclick="closeClientModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveClient()">Save Client</button>
@@ -2021,13 +2028,74 @@ function emailClientFromProfile() {
   );
 }
 
+function buildParqBody(firstName) {
+  return `Hi ${firstName},
+
+Welcome to Jenn Wright Fitness! Before we get started, please take a few minutes to complete this health intake form. Just reply to this email with your answers.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 1 — PAR-Q (Physical Activity Readiness)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Please answer YES or NO to each question:
+
+1. Has a doctor ever said that you have a heart condition and that you should only do physical activity recommended by a doctor?
+
+2. Do you feel pain in your chest when you do physical activity?
+
+3. In the past month, have you had chest pain when you were not doing physical activity?
+
+4. Do you lose your balance because of dizziness, or do you ever lose consciousness?
+
+5. Do you have a bone or joint problem (e.g., back, knee, or hip) that could be made worse by a change in your physical activity?
+
+6. Is your doctor currently prescribing drugs for your blood pressure or heart condition?
+
+7. Do you know of any other reason why you should not do physical activity?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PART 2 — General Health Info
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+8. Date of birth:
+
+9. Any past injuries, surgeries, or chronic conditions I should know about?
+
+10. Are you currently taking any medications?
+
+11. Are you pregnant or postpartum? If postpartum, how many weeks/months?
+
+12. Do you have any food sensitivities or dietary restrictions? (Relevant for nutrition guidance)
+
+13. What are your main fitness goals?
+
+14. How would you describe your current activity level?
+   [ ] Sedentary  [ ] Lightly active  [ ] Moderately active  [ ] Very active
+
+15. Emergency contact name and phone number:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Just hit reply and fill in your answers — no need to print anything!
+
+Looking forward to working with you.
+
+Jenn Wright
+Jenn Wright Fitness — Summerland, BC
+jennwrightfitness.com`;
+}
+
+function sendParqEmail(clientName, clientEmail) {
+  const firstName = clientName.split(' ')[0];
+  openMailto(
+    clientEmail,
+    'Health Intake Form — Jenn Wright Fitness',
+    buildParqBody(firstName)
+  );
+}
+
 function emailIntakeForm() {
   const c = clients.find(x => x.id === viewingClientId);
-  if (!c || !c.email) return;
-  openMailto(c.email,
-    'Health Intake Form — Jenn Wright Fitness',
-    `Hi ${c.name.split(' ')[0]},\n\nPlease fill out the attached health intake form before our first session.\n\nKey information to include:\n• Any past injuries or surgeries\n• Current medications\n• Medical conditions relevant to exercise\n• Your current fitness goals\n• Emergency contact\n\nYou can reply directly to this email with your answers, or we can go through it together at our first session.\n\nLooking forward to working with you!\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`
-  );
+  if (!c || !c.email) { showToast('No email address on file for this client'); return; }
+  sendParqEmail(c.name, c.email);
 }
 
 // ── PROGRAM MODAL ──
@@ -3125,6 +3193,7 @@ function openClientModal() {
   document.getElementById('client-email-input').value = '';
   document.getElementById('client-phone-input').value = '';
   document.getElementById('client-notes-input').value = '';
+  document.getElementById('client-send-parq').checked = false;
   document.getElementById('modal-client').classList.add('active');
 }
 
@@ -3147,11 +3216,19 @@ function saveClient() {
     clients.push({ id: 'c_' + Date.now(), name, email, phone, notes, joinDate: new Date().toISOString().split('T')[0] });
   }
   localStorage.setItem('jwf_clients', JSON.stringify(clients));
+  const sendParq = !editingClientId && document.getElementById('client-send-parq').checked;
+  const savedEmail = email;
+  const savedName = name;
   closeClientModal();
   renderClientsList();
   renderDashboard();
   showToast(editingClientId ? `${name} updated ✓` : `${name} added ✓`);
   editingClientId = null;
+  if (sendParq && savedEmail) {
+    sendParqEmail(savedName, savedEmail);
+  } else if (sendParq && !savedEmail) {
+    showToast('No email on file — add their email to send the form');
+  }
 }
 
 function deleteClient(id) {
