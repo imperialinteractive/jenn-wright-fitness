@@ -636,6 +636,24 @@
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
 
+  /* ── PROFILE TABS ── */
+  .profile-tab {
+    padding: 8px 18px;
+    border-radius: 20px;
+    border: 2px solid #e0d6cc;
+    background: white;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .profile-tab.active, .profile-tab:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
   /* ── UTILITY ── */
   .flex { display: flex; }
   .gap-8 { gap: 8px; }
@@ -896,16 +914,40 @@
 
   <!-- CLIENTS TAB -->
   <div id="tab-clients" class="content" style="display:none">
-    <div class="section-header">
-      <div class="section-title">Clients <span>Manage your clients</span></div>
-      <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
-    </div>
-    <div id="clients-list">
-      <div class="empty-state">
-        <div class="empty-state-icon">👥</div>
-        <h3>No clients yet</h3>
-        <p>Add a client profile to assign programs to them.</p>
+    <!-- Client List view -->
+    <div id="clients-list-view">
+      <div class="section-header">
+        <div class="section-title">Clients <span>Manage your clients</span></div>
+        <button class="btn btn-primary" onclick="openClientModal()">+ Add Client</button>
       </div>
+      <div id="clients-list">
+        <div class="empty-state">
+          <div class="empty-state-icon">👥</div>
+          <h3>No clients yet</h3>
+          <p>Add a client profile to assign programs to them.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Client Profile view -->
+    <div id="client-profile-view" style="display:none">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <button class="btn btn-secondary" onclick="closeClientProfile()">← Back to Clients</button>
+        <div style="font-size:20px;font-weight:800" id="profile-name-header"></div>
+      </div>
+
+      <!-- Profile tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
+        <button class="profile-tab active" onclick="showProfileTab('overview',this)">Overview</button>
+        <button class="profile-tab" onclick="showProfileTab('programs',this)">Programs</button>
+        <button class="profile-tab" onclick="showProfileTab('health',this)">Health Info</button>
+        <button class="profile-tab" onclick="showProfileTab('notes',this)">Notes</button>
+      </div>
+
+      <div id="profile-tab-overview"></div>
+      <div id="profile-tab-programs" style="display:none"></div>
+      <div id="profile-tab-health" style="display:none"></div>
+      <div id="profile-tab-notes" style="display:none"></div>
     </div>
   </div>
 
@@ -1067,24 +1109,30 @@
 <div class="modal-overlay" id="modal-client">
   <div class="modal" style="max-width:440px">
     <div class="modal-header">
-      <div class="modal-title">Add Client</div>
+      <div class="modal-title" id="client-modal-title">Add Client</div>
       <button class="modal-close" onclick="closeClientModal()">✕</button>
     </div>
     <div class="form-group">
       <label class="form-label">Client Name</label>
       <input class="form-input" id="client-name-input" placeholder="e.g. Sarah Johnson">
     </div>
-    <div class="form-group">
-      <label class="form-label">Email (optional)</label>
-      <input class="form-input" id="client-email-input" type="email" placeholder="sarah@email.com">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input class="form-input" id="client-email-input" type="email" placeholder="sarah@email.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone</label>
+        <input class="form-input" id="client-phone-input" type="tel" placeholder="250-555-0100">
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Notes (optional)</label>
-      <textarea class="form-textarea" id="client-notes-input" placeholder="Injuries, goals, preferences..."></textarea>
+      <textarea class="form-textarea" id="client-notes-input" placeholder="Quick notes..."></textarea>
     </div>
     <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
       <button class="btn btn-secondary" onclick="closeClientModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveClient()">Add Client</button>
+      <button class="btn btn-primary" onclick="saveClient()">Save Client</button>
     </div>
   </div>
 </div>
@@ -1151,9 +1199,24 @@ let clients = JSON.parse(localStorage.getItem('jwf_clients') || '[]');
 let currentProgram = null;
 let editingProgramId = null;
 let lastSavedProgramId = null;
-let currentWeekIdx = 0;   // which week is active in the builder
-let clientWeekIdx = 0;    // which week the client is viewing
-let clientProgram = null; // program currently shown in client view
+let currentWeekIdx = 0;
+let clientWeekIdx = 0;
+let clientProgram = null;
+
+// ── MIGRATE old programs (exercises[] → weeks[]) ──
+let migrated = false;
+programs = programs.map(p => {
+  if (!p.weeks && p.exercises) {
+    migrated = true;
+    return { ...p, weeks: [{ label: 'Week 1', exercises: p.exercises }] };
+  }
+  if (!p.weeks) {
+    migrated = true;
+    return { ...p, weeks: [{ label: 'Week 1', exercises: [] }] };
+  }
+  return p;
+});
+if (migrated) localStorage.setItem('jwf_programs', JSON.stringify(programs));
 
 // ── SAMPLE DATA (demo) ──
 if (programs.length === 0) {
@@ -1318,24 +1381,219 @@ function programCardHTML(p) {
 
 // ── RENDER CLIENTS ──
 function renderClientsList() {
+  document.getElementById('clients-list-view').style.display = 'block';
+  document.getElementById('client-profile-view').style.display = 'none';
   const el = document.getElementById('clients-list');
   if (clients.length === 0) {
     el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><h3>No clients yet</h3><p>Add a client profile to assign programs to them.</p></div>`;
     return;
   }
-  el.innerHTML = clients.map(c => `
-    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <div>
-        <div class="bold">${c.name}</div>
-        ${c.email ? `<div class="text-sm text-muted">${c.email}</div>` : ''}
-        ${c.notes ? `<div class="text-sm text-muted mt-8">${c.notes}</div>` : ''}
-        <div class="text-sm text-muted mt-8">
-          ${programs.filter(p => p.client === c.name).length} program(s)
+  el.innerHTML = clients.map(c => {
+    const progCount = programs.filter(p => p.client === c.name).length;
+    return `
+    <div class="card" style="cursor:pointer;transition:all 0.2s;border-left:4px solid var(--accent)" onclick="openClientProfile('${c.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="flex:1">
+          <div class="bold" style="font-size:16px;margin-bottom:4px">${c.name}</div>
+          <div class="text-sm text-muted">
+            ${c.email ? `✉️ ${c.email}` : 'No email'}
+            &nbsp;·&nbsp; ${progCount} program${progCount !== 1 ? 's' : ''}
+            ${c.injuries ? ` &nbsp;·&nbsp; ⚠️ ${c.injuries.split('\n')[0].substring(0,40)}${c.injuries.length > 40 ? '…' : ''}` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:12px;color:var(--accent);font-weight:600">View Profile →</span>
+          <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteClient('${c.id}')">✕</button>
         </div>
       </div>
-      <button class="btn btn-sm btn-danger" onclick="deleteClient('${c.id}')">Remove</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+// ── CLIENT PROFILE ──
+let viewingClientId = null;
+
+function openClientProfile(id) {
+  viewingClientId = id;
+  const c = clients.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('clients-list-view').style.display = 'none';
+  document.getElementById('client-profile-view').style.display = 'block';
+  document.getElementById('profile-name-header').textContent = c.name;
+  showProfileTab('overview');
+}
+
+function closeClientProfile() {
+  document.getElementById('clients-list-view').style.display = 'block';
+  document.getElementById('client-profile-view').style.display = 'none';
+  viewingClientId = null;
+}
+
+function showProfileTab(tab, el) {
+  ['overview','programs','health','notes'].forEach(t => {
+    document.getElementById('profile-tab-' + t).style.display = t === tab ? 'block' : 'none';
+  });
+  document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderProfileTab(tab);
+}
+
+function renderProfileTab(tab) {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c) return;
+  const clientPrograms = programs.filter(p => p.client === c.name);
+
+  if (tab === 'overview') {
+    document.getElementById('profile-tab-overview').innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div>
+            <div style="font-size:22px;font-weight:800;margin-bottom:4px">${c.name}</div>
+            ${c.email ? `<div class="text-sm text-muted">✉️ ${c.email}</div>` : ''}
+            ${c.phone ? `<div class="text-sm text-muted">📱 ${c.phone}</div>` : ''}
+          </div>
+          <button class="btn btn-sm btn-secondary" onclick="editClientProfile()">Edit</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <div class="stat-card"><div class="stat-value">${clientPrograms.length}</div><div class="stat-label">Programs</div></div>
+          <div class="stat-card"><div class="stat-value">${clientPrograms.reduce((a,p)=>a+(p.weeks?p.weeks.length:1),0)}</div><div class="stat-label">Total Weeks</div></div>
+          <div class="stat-card"><div class="stat-value">${c.joinDate ? new Date(c.joinDate).toLocaleDateString('en-CA',{month:'short',year:'numeric'}) : '—'}</div><div class="stat-label">Since</div></div>
+        </div>
+      </div>
+      ${c.goals ? `<div class="card" style="margin-bottom:16px"><div class="bold" style="margin-bottom:6px">🎯 Goals</div><div class="text-sm" style="line-height:1.6">${c.goals.replace(/\n/g,'<br>')}</div></div>` : ''}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="showProfileTab('programs',null)">View Programs</button>
+        ${c.email ? `<button class="btn btn-green" onclick="emailClientFromProfile()">✉️ Email ${c.name.split(' ')[0]}</button>` : ''}
+      </div>`;
+  }
+
+  if (tab === 'programs') {
+    document.getElementById('profile-tab-programs').innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div class="bold">${clientPrograms.length} Program${clientPrograms.length !== 1 ? 's' : ''}</div>
+        <button class="btn btn-sm btn-primary" onclick="closeProgramForClient('${c.name}')">+ New Program</button>
+      </div>
+      ${clientPrograms.length === 0
+        ? `<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No programs yet</h3><p>Create a program for ${c.name.split(' ')[0]}.</p></div>`
+        : clientPrograms.map(p => programCardHTML(p)).join('')
+      }`;
+  }
+
+  if (tab === 'health') {
+    document.getElementById('profile-tab-health').innerHTML = `
+      <div class="card">
+        <div class="bold" style="margin-bottom:16px">🏥 Health & Medical Info</div>
+        <div class="form-group">
+          <label class="form-label">Date of Birth</label>
+          <input class="form-input" id="health-dob" placeholder="e.g. Jan 15, 1990" value="${c.dob||''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Past Injuries / Conditions</label>
+          <textarea class="form-textarea" id="health-injuries" placeholder="e.g. Right knee — ACL repair 2019, lower back sensitivity...">${c.injuries||''}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Medications / Relevant Medical Notes</label>
+          <textarea class="form-textarea" id="health-medical" placeholder="e.g. Gestational diabetes history, blood pressure meds...">${c.medical||''}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">PAR-Q / Screening Notes</label>
+          <textarea class="form-textarea" id="health-parq" placeholder="Pre-exercise screening notes...">${c.parq||''}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Emergency Contact</label>
+          <input class="form-input" id="health-emergency" placeholder="Name & phone number" value="${c.emergency||''}">
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px">
+          <button class="btn btn-primary" onclick="saveHealthInfo()">Save Health Info</button>
+          ${c.email ? `<button class="btn btn-green" onclick="emailIntakeForm()">✉️ Email Intake Form</button>` : ''}
+        </div>
+      </div>`;
+  }
+
+  if (tab === 'notes') {
+    document.getElementById('profile-tab-notes').innerHTML = `
+      <div class="card">
+        <div class="bold" style="margin-bottom:16px">📝 Session & Progress Notes</div>
+        <div class="form-group">
+          <label class="form-label">Running Notes</label>
+          <textarea class="form-textarea" id="client-running-notes" style="min-height:200px" placeholder="Progress observations, session feedback, things to remember...">${c.runningNotes||''}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Goals & Targets</label>
+          <textarea class="form-textarea" id="client-goals" placeholder="Short and long-term goals...">${c.goals||''}</textarea>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Join Date</label>
+          <input class="form-input" id="client-join-date" type="date" value="${c.joinDate||''}">
+        </div>
+        <div style="margin-top:16px">
+          <button class="btn btn-primary" onclick="saveClientNotes()">Save Notes</button>
+        </div>
+      </div>`;
+  }
+}
+
+function editClientProfile() {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c) return;
+  // Reuse add client modal, pre-filled
+  document.getElementById('client-name-input').value = c.name;
+  document.getElementById('client-email-input').value = c.email || '';
+  document.getElementById('client-phone-input').value = c.phone || '';
+  document.getElementById('client-notes-input').value = c.notes || '';
+  editingClientId = c.id;
+  document.getElementById('modal-client').classList.add('active');
+}
+
+let editingClientId = null;
+
+function saveHealthInfo() {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c) return;
+  c.dob = document.getElementById('health-dob').value;
+  c.injuries = document.getElementById('health-injuries').value;
+  c.medical = document.getElementById('health-medical').value;
+  c.parq = document.getElementById('health-parq').value;
+  c.emergency = document.getElementById('health-emergency').value;
+  localStorage.setItem('jwf_clients', JSON.stringify(clients));
+  showToast('Health info saved ✓');
+}
+
+function saveClientNotes() {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c) return;
+  c.runningNotes = document.getElementById('client-running-notes').value;
+  c.goals = document.getElementById('client-goals').value;
+  c.joinDate = document.getElementById('client-join-date').value;
+  localStorage.setItem('jwf_clients', JSON.stringify(clients));
+  showToast('Notes saved ✓');
+}
+
+function closeProgramForClient(clientName) {
+  // Pre-select this client when opening new program modal
+  closeClientProfile();
+  showAdminTab('programs');
+  openProgramModal();
+  setTimeout(() => {
+    const sel = document.getElementById('prog-client');
+    if (sel) sel.value = clientName;
+  }, 100);
+}
+
+function emailClientFromProfile() {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c || !c.email) return;
+  const subject = encodeURIComponent('Checking in — Jenn Wright Fitness');
+  const body = encodeURIComponent(`Hi ${c.name.split(' ')[0]},\n\nJust checking in on your progress!\n\nLet me know how things are going.\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`);
+  window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
+}
+
+function emailIntakeForm() {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c || !c.email) return;
+  const subject = encodeURIComponent('Health Intake Form — Jenn Wright Fitness');
+  const body = encodeURIComponent(`Hi ${c.name.split(' ')[0]},\n\nPlease fill out the attached health intake form before our first session.\n\nKey information to include:\n• Any past injuries or surgeries\n• Current medications\n• Medical conditions relevant to exercise\n• Your current fitness goals\n• Emergency contact\n\nYou can reply directly to this email with your answers, or we can go through it together at our first session.\n\nLooking forward to working with you!\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`);
+  window.location.href = `mailto:${c.email}?subject=${subject}&body=${body}`;
 }
 
 // ── PROGRAM MODAL ──
@@ -1887,30 +2145,39 @@ function getYouTubeId(url) {
 
 // ── CLIENT MODAL ──
 function openClientModal() {
+  editingClientId = null;
+  document.getElementById('client-modal-title').textContent = 'Add Client';
   document.getElementById('client-name-input').value = '';
   document.getElementById('client-email-input').value = '';
+  document.getElementById('client-phone-input').value = '';
   document.getElementById('client-notes-input').value = '';
   document.getElementById('modal-client').classList.add('active');
 }
 
 function closeClientModal() {
+  editingClientId = null;
   document.getElementById('modal-client').classList.remove('active');
 }
 
 function saveClient() {
   const name = document.getElementById('client-name-input').value.trim();
   if (!name) { showToast('Please enter a client name'); return; }
-  clients.push({
-    id: 'c_' + Date.now(),
-    name,
-    email: document.getElementById('client-email-input').value.trim(),
-    notes: document.getElementById('client-notes-input').value.trim()
-  });
+  const email = document.getElementById('client-email-input').value.trim();
+  const phone = document.getElementById('client-phone-input').value.trim();
+  const notes = document.getElementById('client-notes-input').value.trim();
+
+  if (editingClientId) {
+    const c = clients.find(x => x.id === editingClientId);
+    if (c) { c.name = name; c.email = email; c.phone = phone; c.notes = notes; }
+  } else {
+    clients.push({ id: 'c_' + Date.now(), name, email, phone, notes, joinDate: new Date().toISOString().split('T')[0] });
+  }
   localStorage.setItem('jwf_clients', JSON.stringify(clients));
   closeClientModal();
   renderClientsList();
   renderDashboard();
-  showToast(`${name} added ✓`);
+  showToast(editingClientId ? `${name} updated ✓` : `${name} added ✓`);
+  editingClientId = null;
 }
 
 function deleteClient(id) {
