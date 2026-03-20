@@ -1386,8 +1386,8 @@ programs = programs.map(p => {
 });
 if (migrated) localStorage.setItem('jwf_programs', JSON.stringify(programs));
 
-// ── SAMPLE DATA (demo) ──
-if (programs.length === 0) {
+// ── SAMPLE DATA ──
+function seedDemoData() {
   const sampleId = 'prog_' + Date.now();
   programs = [{
     id: sampleId,
@@ -1420,9 +1420,16 @@ if (programs.length === 0) {
   }];
   localStorage.setItem('jwf_programs', JSON.stringify(programs));
 
-  clients = [{ id: 'c_1', name: 'Sarah Johnson', email: 'sarah@email.com', notes: 'Post-partum, cleared at 8 weeks' }];
+  clients = [{ id: 'c_1', name: 'Sarah Johnson', email: 'sarah@email.com', notes: 'Post-partum, cleared at 8 weeks', joinDate: new Date().toISOString().split('T')[0] }];
   localStorage.setItem('jwf_clients', JSON.stringify(clients));
+  renderDashboard();
+  renderProgramsList();
+  renderClientsList();
+  showToast('Demo program restored ✓');
 }
+
+const hasDemoProgram = programs.some(p => p.name && p.name.includes('Post-Partum Lower Body'));
+if (programs.length === 0 || !hasDemoProgram) seedDemoData();
 
 // ── ROUTING ──
 function showScreen(id) {
