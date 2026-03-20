@@ -2904,6 +2904,8 @@ function renderClientView(p, weekIdx) {
     weekLabel.style.display = 'none';
   }
 
+  const pId = p.id;
+  const wIdx = clientWeekIdx;
   const list = document.getElementById('client-exercises-list');
   list.innerHTML = renderExercisesGrouped(week.exercises, pId, wIdx);
   // Scroll exercises back to top on week change
