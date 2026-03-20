@@ -1144,12 +1144,6 @@
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Client</label>
-          <select class="form-select" id="prog-client">
-            <option value="">— Select Client —</option>
-          </select>
-        </div>
-        <div class="form-group">
           <label class="form-label">Focus</label>
           <select class="form-select" id="prog-focus">
             <option value="Full Body">Full Body</option>
@@ -1164,6 +1158,7 @@
           </select>
         </div>
       </div>
+      <div style="display:none"><select id="prog-client"></select></div>
       <div class="form-group">
         <label class="form-label">Days Per Week</label>
         <input class="form-input" id="prog-days" type="number" min="1" max="7" placeholder="3" style="max-width:140px">
@@ -1262,6 +1257,35 @@
       <button class="btn btn-secondary" onclick="closeShareModal()">Close</button>
       <button class="btn btn-green" onclick="emailClientLink()">✉️ Email to Client</button>
       <button class="btn btn-primary" onclick="previewClient()">Preview as Client →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     MODAL — Assign Program to Client
+════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-assign">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Assign Program</div>
+      <button class="modal-close" onclick="closeAssignModal()">✕</button>
+    </div>
+    <p class="text-sm text-muted" style="margin-bottom:16px">Select a client to assign this program to. They'll get their own unique link.</p>
+    <div class="form-group">
+      <label class="form-label">Client</label>
+      <select class="form-select" id="assign-client-select">
+        <option value="">— Select Client —</option>
+      </select>
+    </div>
+    <div id="assign-new-client-row" style="display:none;margin-bottom:12px">
+      <div class="form-group" style="margin-bottom:8px">
+        <label class="form-label">New Client Name</label>
+        <input class="form-input" id="assign-new-name" placeholder="e.g. Jane Smith">
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px">
+      <button class="btn btn-secondary" onclick="closeAssignModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAssign()">Assign & Get Link</button>
     </div>
   </div>
 </div>
@@ -1455,35 +1479,92 @@ function toggleGroup(id) {
 }
 
 function programCardHTML(p) {
-  const link = buildClientLink(p.id);
-  return `<div class="program-card" style="flex-direction:column;align-items:stretch;gap:12px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+  const weekCount = p.weeks ? p.weeks.length : 1;
+  const exCount = p.weeks ? p.weeks.reduce((a,w)=>a+w.exercises.length,0) : (p.exercises||[]).length;
+  const assignments = p.assignments || (p.client ? [{ clientName: p.client, linkId: p.id, assignedAt: p.createdAt }] : []);
+  const assignedId = `assignments-${p.id}`;
+
+  return `<div class="program-card" style="flex-direction:column;align-items:stretch;gap:0;padding:0;overflow:hidden">
+    <!-- Template header -->
+    <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px">
       <div class="program-card-info">
         <div class="program-card-name">${p.name}</div>
-        <div class="program-card-meta">
-          ${p.client ? `👤 ${p.client} · ` : '<span style="color:#c8855a">⚠️ No client assigned · </span>'}
+        <div class="program-card-meta" style="margin-top:4px">
           <span class="badge badge-orange">${p.focus}</span>
-          &nbsp;${p.weeks ? p.weeks.length + ' week' + (p.weeks.length !== 1 ? 's' : '') : 'Week 1'} · ${p.weeks ? p.weeks.reduce((a,w)=>a+w.exercises.length,0) : (p.exercises||[]).length} exercises
+          &nbsp;${weekCount} week${weekCount!==1?'s':''} · ${exCount} exercises
         </div>
       </div>
-      <div class="program-card-actions">
-        <button class="btn btn-sm btn-green" onclick="quickEmailLink('${p.id}')">✉️</button>
-        <button class="btn btn-sm btn-secondary" onclick="openProgramModal('${p.id}')">✏️ Edit</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn btn-sm btn-secondary" onclick="openProgramModal('${p.id}')">✏️</button>
         <button class="btn btn-sm btn-primary" onclick="previewProgram('${p.id}')">Preview</button>
         <button class="btn btn-sm btn-danger" onclick="deleteProgram('${p.id}')">✕</button>
       </div>
     </div>
-    <div style="background:#f0f7f1;border:2px solid #6b8f71;border-radius:10px;padding:10px 14px">
-      <div style="font-size:11px;font-weight:700;color:#6b8f71;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">
-        📎 Client Link — send this to ${p.client || 'your client'}
+
+    <!-- Assigned clients -->
+    <div style="border-top:1px solid #f0ebe3;background:#faf7f4;padding:12px 20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${assignments.length?'10px':'0'}">
+        <div style="font-size:12px;font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px">
+          👥 Assigned to ${assignments.length} client${assignments.length!==1?'s':''}
+        </div>
+        <button class="btn btn-sm btn-green" onclick="openAssignModal('${p.id}')">+ Assign to Client</button>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <input readonly value="${link}" style="flex:1;padding:8px 12px;border:2px solid #c8e0cc;border-radius:8px;font-size:12px;font-family:monospace;background:white;color:#3d3028" onclick="this.select()">
-        <button class="btn btn-sm btn-green" onclick="copyLink('${p.id}', this)">Copy</button>
+      <div id="${assignedId}">
+        ${assignments.map(a => assignmentRowHTML(p, a)).join('')}
       </div>
-      <div style="font-size:11px;color:#6b8f71;margin-top:6px">They open this link — no login needed. Their program shows up instantly.</div>
     </div>
   </div>`;
+}
+
+function assignmentRowHTML(p, a) {
+  const link = buildAssignmentLink(p.id, a);
+  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;background:white;border-radius:8px;padding:8px 12px;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:600;flex:1">👤 ${a.clientName}</span>
+    <input readonly value="${link}" onclick="this.select()" style="flex:2;min-width:120px;padding:5px 8px;border:1px solid #e0d6cc;border-radius:6px;font-size:11px;font-family:monospace;background:#f9f6f2">
+    <button class="btn btn-sm btn-green" style="padding:5px 10px" onclick="copyAssignmentLink('${p.id}','${a.linkId}',this)">Copy</button>
+    <button class="btn btn-sm btn-secondary" style="padding:5px 10px" onclick="emailAssignment('${p.id}','${a.linkId}')">✉️</button>
+    <button class="btn btn-sm btn-danger" style="padding:5px 10px" onclick="removeAssignment('${p.id}','${a.linkId}')">✕</button>
+  </div>`;
+}
+
+function buildAssignmentLink(programId, a) {
+  const slug = a.clientName ? '&client=' + encodeURIComponent(a.clientName.replace(/\s+/g,'-')) : '';
+  return `${location.origin}${location.pathname}?program=${programId}&assign=${a.linkId}${slug}`;
+}
+
+function copyAssignmentLink(programId, linkId, btn) {
+  const p = programs.find(x => x.id === programId);
+  const a = (p.assignments||[]).find(x => x.linkId === linkId);
+  if (!a) return;
+  navigator.clipboard.writeText(buildAssignmentLink(programId, a)).then(() => {
+    btn.textContent = '✓';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+
+function emailAssignment(programId, linkId) {
+  const p = programs.find(x => x.id === programId);
+  const a = (p.assignments||[]).find(x => x.linkId === linkId);
+  if (!a) return;
+  const link = buildAssignmentLink(programId, a);
+  const c = clients.find(x => x.name === a.clientName);
+  const email = c ? c.email || '' : '';
+  const firstName = a.clientName.split(' ')[0];
+  openMailto(email,
+    `Your Program from Jenn Wright Fitness — ${p.name}`,
+    `Hi ${firstName},\n\nYour exercise program is ready! Tap the link below to view it anytime — no login needed.\n\n${link}\n\nProgram: ${p.name}\nFocus: ${p.focus}\nWeeks: ${p.weeks?p.weeks.length:1}\n${p.notes?'\nNotes from Jenn:\n'+p.notes+'\n':''}\nDon't hesitate to reach out if you have any questions!\n\nJenn Wright\nJenn Wright Fitness — Summerland, BC\njennwrightfitness.com`
+  );
+}
+
+function removeAssignment(programId, linkId) {
+  if (!confirm('Remove this client assignment?')) return;
+  const p = programs.find(x => x.id === programId);
+  if (!p) return;
+  p.assignments = (p.assignments||[]).filter(a => a.linkId !== linkId);
+  localStorage.setItem('jwf_programs', JSON.stringify(programs));
+  renderProgramsList();
+  renderDashboard();
+  showToast('Assignment removed');
 }
 
 // ── RENDER CLIENTS ──
@@ -2098,10 +2179,12 @@ function closeShareModal() {
 }
 
 function buildClientLink(id) {
+  // Legacy — returns first assignment link or bare program link
   const p = programs.find(x => x.id === id);
-  const clientSlug = p && p.client
-    ? '&client=' + encodeURIComponent(p.client.replace(/\s+/g, '-'))
-    : '';
+  if (p && p.assignments && p.assignments.length) {
+    return buildAssignmentLink(id, p.assignments[0]);
+  }
+  const clientSlug = p && p.client ? '&client=' + encodeURIComponent(p.client.replace(/\s+/g,'-')) : '';
   return `${location.origin}${location.pathname}?program=${id}${clientSlug}`;
 }
 
@@ -2150,6 +2233,70 @@ function quickEmailLink(id) {
 }
 
 
+
+// ── ASSIGN MODAL ──
+let assigningProgramId = null;
+
+function openAssignModal(programId) {
+  assigningProgramId = programId;
+  const sel = document.getElementById('assign-client-select');
+  sel.innerHTML = '<option value="">— Select Client —</option>' +
+    clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('') +
+    '<option value="__new__">+ Add new client...</option>';
+  sel.onchange = () => {
+    document.getElementById('assign-new-client-row').style.display = sel.value === '__new__' ? 'block' : 'none';
+  };
+  sel.value = '';
+  document.getElementById('assign-new-client-row').style.display = 'none';
+  document.getElementById('modal-assign').classList.add('active');
+}
+
+function closeAssignModal() {
+  document.getElementById('modal-assign').classList.remove('active');
+  assigningProgramId = null;
+}
+
+function confirmAssign() {
+  const p = programs.find(x => x.id === assigningProgramId);
+  if (!p) return;
+  let clientName = document.getElementById('assign-client-select').value;
+  if (clientName === '__new__') {
+    clientName = document.getElementById('assign-new-name').value.trim();
+    if (!clientName) { showToast('Enter a client name'); return; }
+    // Add to clients list
+    if (!clients.find(c => c.name === clientName)) {
+      clients.push({ id: 'c_' + Date.now(), name: clientName, email: '', joinDate: new Date().toISOString().split('T')[0] });
+      localStorage.setItem('jwf_clients', JSON.stringify(clients));
+    }
+  }
+  if (!clientName) { showToast('Select a client'); return; }
+
+  if (!p.assignments) p.assignments = [];
+  // Check not already assigned
+  if (p.assignments.find(a => a.clientName === clientName)) {
+    showToast(`Already assigned to ${clientName}`); return;
+  }
+  const assignment = { clientName, linkId: 'a_' + Date.now(), assignedAt: new Date().toISOString() };
+  p.assignments.push(assignment);
+  localStorage.setItem('jwf_programs', JSON.stringify(programs));
+  closeAssignModal();
+  renderProgramsList();
+  renderDashboard();
+  // Show the link
+  lastSavedProgramId = p.id;
+  lastAssignmentId = assignment.linkId;
+  openAssignShareModal(p, assignment);
+}
+
+let lastAssignmentId = null;
+
+function openAssignShareModal(p, a) {
+  const link = buildAssignmentLink(p.id, a);
+  document.getElementById('share-link-display').value = link;
+  document.getElementById('modal-share').classList.add('active');
+  // Update email button
+  lastSavedProgramId = p.id;
+}
 
 function copyLink(id, btn) {
   const link = buildClientLink(id);
@@ -2458,7 +2605,20 @@ function checkUrlForProgram() {
   if (id) {
     const p = programs.find(x => x.id === id);
     if (p) {
-      renderClientView(p);
+      // Find client name from assignment or client param
+      const assignId = params.get('assign');
+      const clientParam = params.get('client');
+      let clientName = '';
+      if (assignId && p.assignments) {
+        const a = p.assignments.find(x => x.linkId === assignId);
+        if (a) clientName = a.clientName;
+      } else if (clientParam) {
+        clientName = decodeURIComponent(clientParam.replace(/-/g,' '));
+      } else if (p.client) {
+        clientName = p.client;
+      }
+      const viewP = clientName ? { ...p, client: clientName } : p;
+      renderClientView(viewP);
       document.getElementById('client-back-bar').style.display = 'none';
       showScreen('client');
       return true;
