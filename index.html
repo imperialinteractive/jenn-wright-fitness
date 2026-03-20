@@ -1016,7 +1016,7 @@
   <div id="tab-programs" class="content" style="display:none">
     <div class="section-header">
       <div class="section-title">Exercise Programs <span>All prescriptions</span></div>
-      <button class="btn btn-primary" onclick="try{openProgramModal()}catch(e){alert('Error: '+e.message)}">+ New Program</button>
+      <button class="btn btn-primary" onclick="openProgramModal()">+ New Program</button>
     </div>
     <div id="programs-list">
       <div class="empty-state">
@@ -3292,9 +3292,17 @@ function setGreeting() {
 }
 
 // ── INIT ──
-if (!checkUrlForProgram()) {
-  showAdminIfAuthed();
-  setGreeting();
+function init() {
+  if (!checkUrlForProgram()) {
+    showAdminIfAuthed();
+    setGreeting();
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
 }
 </script>
 </body>
