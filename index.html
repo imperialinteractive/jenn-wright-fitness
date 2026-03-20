@@ -648,6 +648,22 @@
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
 
+  /* ── STRUCTURE CARDS ── */
+  .structure-card {
+    border: 2px solid #e0d6cc;
+    border-radius: 12px;
+    padding: 14px 10px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: white;
+  }
+  .structure-card:hover { border-color: var(--accent); }
+  .structure-card.active {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
   /* ── PROFILE TABS ── */
   .profile-tab {
     padding: 8px 18px;
@@ -1197,6 +1213,31 @@
         </div>
       </div>
       <div style="display:none"><select id="prog-client"></select></div>
+
+      <div class="form-group">
+        <label class="form-label">Program Structure</label>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px" id="structure-picker">
+          <div class="structure-card active" data-structure="single" onclick="selectStructure('single',this)">
+            <div style="font-size:22px;margin-bottom:4px">1️⃣</div>
+            <div style="font-weight:700;font-size:13px">Single</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">One workout</div>
+          </div>
+          <div class="structure-card" data-structure="weekly" onclick="selectStructure('weekly',this)">
+            <div style="font-size:22px;margin-bottom:4px">📅</div>
+            <div style="font-weight:700;font-size:13px">Weekly</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Week 1, 2, 3…</div>
+          </div>
+          <div class="structure-card" data-structure="ab" onclick="selectStructure('ab',this)">
+            <div style="font-size:22px;margin-bottom:4px">🔄</div>
+            <div style="font-weight:700;font-size:13px">A/B Days</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Day A, Day B within a week</div>
+          </div>
+        </div>
+        <div id="structure-hint" style="font-size:12px;color:var(--text-light);margin-top:8px;padding:8px 12px;background:#f5f1ec;border-radius:8px">
+          One workout program — client gets a single page with all exercises.
+        </div>
+      </div>
+
       <div class="form-group">
         <label class="form-label">Days Per Week</label>
         <input class="form-input" id="prog-days" type="number" min="1" max="7" placeholder="3" style="max-width:140px">
@@ -1843,7 +1884,21 @@ function emailIntakeForm() {
 }
 
 // ── PROGRAM MODAL ──
-let selectedProgramType = 'template'; // 'template' or 'client'
+let selectedProgramType = 'template';
+let selectedStructure = 'single';
+
+const STRUCTURE_HINTS = {
+  single: 'One workout program — client gets a single page with all exercises.',
+  weekly: 'Progressive program — build Week 1, Week 2, Week 3 etc. Client navigates forward each week.',
+  ab: 'Alternating days — build Day A and Day B. Client alternates between them each session.'
+};
+
+function selectStructure(type, el) {
+  selectedStructure = type;
+  document.querySelectorAll('.structure-card').forEach(c => c.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('structure-hint').textContent = STRUCTURE_HINTS[type];
+}
 let editingAssignment = null; // { programId, linkId } when editing an assignment copy
 
 function selectProgramType(type) {
@@ -1910,6 +1965,9 @@ function openProgramModal(id = null, assignmentLinkId = null) {
     // New program — show type selector
     document.getElementById('modal-program-title').textContent = 'New Program';
     selectedProgramType = 'template';
+    selectedStructure = 'single';
+    document.querySelectorAll('.structure-card').forEach((c,i) => c.classList.toggle('active', i===0));
+    document.getElementById('structure-hint').textContent = STRUCTURE_HINTS['single'];
     document.getElementById('type-template-card').style.border = '2px solid #e0d6cc';
     document.getElementById('type-template-card').style.background = 'white';
     document.getElementById('type-client-card').style.border = '2px solid #e0d6cc';
@@ -1981,9 +2039,17 @@ function goToExercises() {
   currentProgram.days = document.getElementById('prog-days').value || 3;
   currentProgram.notes = document.getElementById('prog-notes').value;
 
-  // Migrate old single-week programs to weeks array
-  if (!currentProgram.weeks) {
-    currentProgram.weeks = [{ label: 'Week 1', exercises: currentProgram.exercises || [] }];
+  // Migrate old single-week programs to weeks array, or init from structure
+  if (!currentProgram.weeks || currentProgram.weeks.length === 0) {
+    if (selectedStructure === 'ab') {
+      currentProgram.weeks = [
+        { label: 'Day A', exercises: [] },
+        { label: 'Day B', exercises: [] }
+      ];
+    } else {
+      currentProgram.weeks = [{ label: selectedStructure === 'weekly' ? 'Week 1' : 'Workout', exercises: currentProgram.exercises || [] }];
+    }
+    currentProgram.structure = selectedStructure;
     delete currentProgram.exercises;
   }
   currentWeekIdx = 0;
@@ -2021,14 +2087,13 @@ function switchBuilderWeek(i) {
 }
 
 function addWeek() {
+  const structure = currentProgram.structure || selectedStructure || 'weekly';
   const n = currentProgram.weeks.length + 1;
-  // Auto-suggest label based on existing labels
-  const existing = currentProgram.weeks.map(w => w.label);
   let label;
-  if (existing.every(l => /^Day [A-Z]$/.test(l))) {
-    label = `Day ${String.fromCharCode(65 + currentProgram.weeks.length)}`;
-  } else if (existing.every(l => /^Phase \d+$/.test(l))) {
-    label = `Phase ${n}`;
+  if (structure === 'ab') {
+    label = `Day ${String.fromCharCode(64 + n)}`; // Day A, B, C...
+  } else if (structure === 'single') {
+    label = `Variation ${n}`;
   } else {
     label = `Week ${n}`;
   }
@@ -2036,7 +2101,7 @@ function addWeek() {
   currentWeekIdx = currentProgram.weeks.length - 1;
   renderWeekTabs();
   renderExercisesBuilder();
-  showToast(`${label} added — rename it by tapping the label`);
+  showToast(`${label} added`);
 }
 
 function goBackToInfo() {
@@ -2542,8 +2607,16 @@ function renderClientView(p, weekIdx) {
       `<div onclick="changeWeek(${i - clientWeekIdx})" style="width:${i===clientWeekIdx?'24px':'8px'};height:8px;border-radius:4px;background:${i===clientWeekIdx?'var(--accent)':'rgba(255,255,255,0.35)'};cursor:pointer;transition:all 0.3s"></div>`
     ).join('');
 
-    const isAB = /^Day [A-Z]$/.test(week.label);
+    const structure = p.structure || 'weekly';
+    const isAB = structure === 'ab' || /^Day [A-Z]/.test(week.label);
     document.getElementById('client-week-label-text').textContent = isAB ? `🔄 ${week.label}` : week.label;
+    // Update nav button labels
+    const prevLabel = isAB ? '‹ Prev Day' : '‹ Prev Week';
+    const nextLabel = isAB ? 'Next Day ›' : 'Next Week ›';
+    document.getElementById('week-prev-btn').textContent = prevLabel;
+    document.getElementById('week-next-btn').textContent = nextLabel;
+    document.getElementById('week-prev-btn2').textContent = prevLabel;
+    document.getElementById('week-next-btn2').textContent = nextLabel;
     document.getElementById('week-prev-btn').style.opacity = clientWeekIdx === 0 ? '0.3' : '1';
     document.getElementById('week-next-btn').style.opacity = clientWeekIdx === p.weeks.length - 1 ? '0.3' : '1';
     document.getElementById('week-prev-btn2').style.display = clientWeekIdx === 0 ? 'none' : 'block';
