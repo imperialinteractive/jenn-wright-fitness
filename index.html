@@ -636,46 +636,6 @@
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
 
-  /* ── EXERCISE SEARCH DROPDOWN ── */
-  .ex-search-wrap { position: relative; }
-  .ex-suggestions {
-    position: absolute;
-    top: 100%;
-    left: 0; right: 0;
-    background: white;
-    border: 2px solid var(--accent);
-    border-radius: 10px;
-    z-index: 50;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-    display: none;
-    overflow: hidden;
-  }
-  .ex-suggestion {
-    padding: 10px 14px;
-    cursor: pointer;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.15s;
-    font-size: 14px;
-  }
-  .ex-suggestion:hover { background: var(--accent-light); }
-  .ex-suggestion + .ex-suggestion { border-top: 1px solid #f0ebe3; }
-
-  /* ── IMAGE UPLOAD ── */
-  .upload-area {
-    border: 2px dashed #d4c8bc;
-    border-radius: 10px;
-    padding: 16px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    background: #faf7f4;
-  }
-  .upload-area:hover { border-color: var(--accent); background: var(--accent-light); }
-  .upload-area input[type=file] { display: none; }
-
   /* ── UTILITY ── */
   .flex { display: flex; }
   .gap-8 { gap: 8px; }
@@ -858,9 +818,9 @@
     </div>
     <div style="display:flex;align-items:center;gap:8px">
       <div class="nav-tabs">
-        <button class="nav-tab active" onclick="showAdminTab('dashboard')">Dashboard</button>
-        <button class="nav-tab" onclick="showAdminTab('programs')">Programs</button>
-        <button class="nav-tab" onclick="showAdminTab('clients')">Clients</button>
+        <button class="nav-tab active" onclick="showAdminTab('dashboard',this)">Dashboard</button>
+        <button class="nav-tab" onclick="showAdminTab('programs',this)">Programs</button>
+        <button class="nav-tab" onclick="showAdminTab('clients',this)">Clients</button>
       </div>
       <button class="nav-tab" onclick="doLogout()" style="color:rgba(255,255,255,0.5)">Sign Out</button>
     </div>
@@ -870,7 +830,7 @@
   <div id="tab-dashboard" class="content">
     <div class="section-header" style="margin-bottom:28px">
       <div class="section-title">
-        Good morning, Jenn! 👋
+        <span id="greeting-text">Good morning, Jenn!</span> 👋
         <span>Here's your overview</span>
       </div>
     </div>
@@ -895,12 +855,12 @@
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:28px">
-      <div class="card" style="cursor:pointer;text-align:center;padding:24px" onclick="showAdminTab('programs');openProgramModal()">
+      <div class="card" style="cursor:pointer;text-align:center;padding:24px" onclick="showAdminTab('programs');openProgramModal();" >
         <div style="font-size:32px;margin-bottom:8px">📋</div>
         <div style="font-weight:700;margin-bottom:4px">New Program</div>
         <div class="text-sm text-muted">Build an exercise prescription</div>
       </div>
-      <div class="card" style="cursor:pointer;text-align:center;padding:24px" onclick="showAdminTab('clients');openClientModal()">
+      <div class="card" style="cursor:pointer;text-align:center;padding:24px" onclick="showAdminTab('clients');openClientModal();">
         <div style="font-size:32px;margin-bottom:8px">👤</div>
         <div style="font-weight:700;margin-bottom:4px">Add Client</div>
         <div class="text-sm text-muted">Add a new client profile</div>
@@ -980,7 +940,7 @@
   </div>
 
   <!-- Week nav bar -->
-  <div id="client-week-nav" style="display:none;background:var(--dark);padding:12px 20px;display:none;align-items:center;justify-content:space-between;gap:12px">
+  <div id="client-week-nav" style="display:none;background:var(--dark);padding:12px 20px;align-items:center;justify-content:space-between;gap:12px">
     <button id="week-prev-btn" onclick="changeWeek(-1)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s">‹ Prev</button>
     <div id="week-dots" style="display:flex;gap:8px;align-items:center"></div>
     <button id="week-next-btn" onclick="changeWeek(1)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s">Next ›</button>
@@ -1008,7 +968,7 @@
     </button>
 
     <!-- Week nav bottom -->
-    <div id="client-week-nav-bottom" style="display:none;margin-top:16px;display:none;justify-content:space-between;gap:12px">
+    <div id="client-week-nav-bottom" style="display:none;margin-top:16px;justify-content:space-between;gap:12px">
       <button id="week-prev-btn2" onclick="changeWeek(-1)" style="flex:1;padding:14px;background:white;border:2px solid var(--accent);color:var(--accent);border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer">‹ Previous Week</button>
       <button id="week-next-btn2" onclick="changeWeek(1)" style="flex:1;padding:14px;background:var(--accent);border:none;color:white;border-radius:var(--radius);font-size:14px;font-weight:700;cursor:pointer">Next Week ›</button>
     </div>
@@ -1203,46 +1163,27 @@ if (programs.length === 0) {
     name: 'Post-Partum Lower Body Phase 1',
     client: 'Sarah Johnson',
     focus: 'Lower Body',
-    week: 1,
     days: 3,
     notes: 'Start with a 5-minute walk to warm up. Rest 60 seconds between sets. Focus on form over weight — we\'re rebuilding from the ground up! You\'re doing amazing.',
     createdAt: new Date().toISOString(),
-    exercises: [
+    weeks: [
       {
-        name: 'Glute Bridge',
-        sets: '3',
-        reps: '15',
-        rest: '60s',
-        videoUrl: 'https://www.youtube.com/watch?v=OUgsJ8-Vi0E',
-        imageUrl: '',
-        notes: 'Press through your heels, squeeze at the top for 2 seconds. Keep core braced throughout.'
+        label: 'Week 1',
+        exercises: [
+          { name: 'Glute Bridge', sets: '3', reps: '15', rest: '60s', videoUrl: 'https://www.youtube.com/watch?v=OUgsJ8-Vi0E', imageUrl: '', imageData: '', notes: 'Press through your heels, squeeze at the top for 2 seconds. Keep core braced throughout.' },
+          { name: 'Bodyweight Squat', sets: '3', reps: '12', rest: '60s', videoUrl: 'https://www.youtube.com/watch?v=aclHkVaku9U', imageUrl: '', imageData: '', notes: 'Feet shoulder-width apart, toes slightly out. Lower until thighs are parallel. Keep chest tall.' },
+          { name: 'Side-Lying Clamshell', sets: '3', reps: '20 each', rest: '45s', videoUrl: '', imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80', imageData: '', notes: 'Keep hips stacked — don\'t rock backward. Use a light resistance band when this feels easy.' },
+          { name: 'Step-Up (no weight)', sets: '3', reps: '10 each leg', rest: '60s', videoUrl: '', imageUrl: '', imageData: '', notes: 'Use a step or sturdy surface. Drive through the heel of the working leg. Controlled step down.' }
+        ]
       },
       {
-        name: 'Bodyweight Squat',
-        sets: '3',
-        reps: '12',
-        rest: '60s',
-        videoUrl: 'https://www.youtube.com/watch?v=aclHkVaku9U',
-        imageUrl: '',
-        notes: 'Feet shoulder-width apart, toes slightly out. Lower until thighs are parallel. Keep chest tall.'
-      },
-      {
-        name: 'Side-Lying Clamshell',
-        sets: '3',
-        reps: '20 each',
-        rest: '45s',
-        videoUrl: '',
-        imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&q=80',
-        notes: 'Keep hips stacked — don\'t rock backward. Use a light resistance band when this feels easy.'
-      },
-      {
-        name: 'Step-Up (no weight)',
-        sets: '3',
-        reps: '10 each leg',
-        rest: '60s',
-        videoUrl: '',
-        imageUrl: '',
-        notes: 'Use a step or sturdy surface. Drive through the heel of the working leg. Controlled step down.'
+        label: 'Week 2',
+        exercises: [
+          { name: 'Hip Thrust', sets: '3', reps: '12', rest: '90s', videoUrl: '', imageUrl: '', imageData: '', notes: 'Add a resistance band above the knees this week. Drive through the heels, hold at the top.' },
+          { name: 'Goblet Squat', sets: '3', reps: '10', rest: '60s', videoUrl: '', imageUrl: '', imageData: '', notes: 'Hold a dumbbell at your chest. Keep elbows inside your knees at the bottom.' },
+          { name: 'Reverse Lunge', sets: '3', reps: '10 each', rest: '60s', videoUrl: '', imageUrl: '', imageData: '', notes: 'Step back — not forward. Keep your front knee over your ankle. Tall chest throughout.' },
+          { name: 'Dead Bug', sets: '3', reps: '10 each', rest: '45s', videoUrl: '', imageUrl: '', imageData: '', notes: 'Press your lower back into the floor the entire time. Slow and controlled — breathe out as you extend.' }
+        ]
       }
     ]
   }];
@@ -1268,11 +1209,11 @@ function showAdminIfAuthed() {
 }
 
 // ── ADMIN TABS ──
-function showAdminTab(tab) {
+function showAdminTab(tab, el) {
   document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
   document.getElementById('tab-' + tab).style.display = 'block';
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  event.target.classList.add('active');
+  if (el) el.classList.add('active');
   if (tab === 'dashboard') renderDashboard();
   if (tab === 'programs') renderProgramsList();
   if (tab === 'clients') renderClientsList();
@@ -1415,10 +1356,13 @@ function openProgramModal(id = null) {
       document.getElementById('prog-name').value = p.name;
       document.getElementById('prog-client').value = p.client || '';
       document.getElementById('prog-focus').value = p.focus || 'Full Body';
-      document.getElementById('prog-week').value = p.week || 1;
       document.getElementById('prog-days').value = p.days || 3;
       document.getElementById('prog-notes').value = p.notes || '';
-      currentProgram = { ...p, exercises: [...p.exercises.map(e => ({...e}))] };
+      // Deep clone weeks
+      const weeks = p.weeks
+        ? p.weeks.map(w => ({ ...w, exercises: w.exercises.map(e => ({...e})) }))
+        : [{ label: 'Week 1', exercises: (p.exercises || []).map(e => ({...e})) }];
+      currentProgram = { ...p, weeks };
     }
   } else {
     document.getElementById('prog-name').value = '';
@@ -2001,9 +1945,18 @@ function checkUrlForProgram() {
   return false;
 }
 
+// ── GREETING ──
+function setGreeting() {
+  const h = new Date().getHours();
+  const g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const el = document.getElementById('greeting-text');
+  if (el) el.textContent = `${g}, Jenn!`;
+}
+
 // ── INIT ──
 if (!checkUrlForProgram()) {
   showAdminIfAuthed();
+  setGreeting();
 }
 </script>
 </body>
