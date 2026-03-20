@@ -1628,7 +1628,7 @@ function renderClientsList() {
     return;
   }
   el.innerHTML = clients.map(c => {
-    const progCount = programs.filter(p => p.client === c.name).length;
+    const progCount = programs.filter(p => p.client === c.name || (p.assignments||[]).some(a => a.clientName === c.name)).length;
     return `
     <div class="card" style="cursor:pointer;transition:all 0.2s;border-left:4px solid var(--accent)" onclick="openClientProfile('${c.id}')">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
@@ -1679,7 +1679,7 @@ function showProfileTab(tab, el) {
 function renderProfileTab(tab) {
   const c = clients.find(x => x.id === viewingClientId);
   if (!c) return;
-  const clientPrograms = programs.filter(p => p.client === c.name);
+  const clientPrograms = programs.filter(p => p.client === c.name || (p.assignments||[]).some(a => a.clientName === c.name));
 
   if (tab === 'overview') {
     document.getElementById('profile-tab-overview').innerHTML = `
