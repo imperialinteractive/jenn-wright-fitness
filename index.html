@@ -1191,7 +1191,7 @@
 
       <div style="margin-bottom:12px">
         <div class="bold" style="margin-bottom:2px">✏️ Exercises — <span id="current-week-label">Week 1</span></div>
-        <div class="text-sm text-muted">Type to search the exercise bank. Add photo or YouTube link for each exercise.</div>
+        <div class="text-sm text-muted">Search exercise bank · add weight recommendation · group into supersets.</div>
       </div>
 
       <div id="exercises-builder"></div>
@@ -1779,7 +1779,18 @@ function renderWeekTabs() {
   tabs.innerHTML = currentProgram.weeks.map((w, i) =>
     `<button onclick="switchBuilderWeek(${i})" style="padding:7px 16px;border-radius:20px;border:2px solid ${i===currentWeekIdx?'var(--accent)':'#e0d6cc'};background:${i===currentWeekIdx?'var(--accent)':'white'};color:${i===currentWeekIdx?'white':'var(--text)'};font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s">${w.label}</button>`
   ).join('');
-  document.getElementById('current-week-label').textContent = currentProgram.weeks[currentWeekIdx].label;
+  // Editable week label
+  const labelWrap = document.getElementById('current-week-label');
+  labelWrap.innerHTML = `<input value="${currentProgram.weeks[currentWeekIdx].label}"
+    style="background:none;border:none;border-bottom:2px solid var(--accent);font-weight:700;font-size:inherit;color:inherit;width:120px;padding:0 2px"
+    onchange="renameWeek(${currentWeekIdx}, this.value)"
+    title="Click to rename (e.g. Week 1, Day A, Phase 1...)">`;
+}
+
+function renameWeek(idx, name) {
+  if (!name.trim()) return;
+  currentProgram.weeks[idx].label = name.trim();
+  renderWeekTabs();
 }
 
 function switchBuilderWeek(i) {
@@ -1790,11 +1801,21 @@ function switchBuilderWeek(i) {
 
 function addWeek() {
   const n = currentProgram.weeks.length + 1;
-  currentProgram.weeks.push({ label: `Week ${n}`, exercises: [] });
+  // Auto-suggest label based on existing labels
+  const existing = currentProgram.weeks.map(w => w.label);
+  let label;
+  if (existing.every(l => /^Day [A-Z]$/.test(l))) {
+    label = `Day ${String.fromCharCode(65 + currentProgram.weeks.length)}`;
+  } else if (existing.every(l => /^Phase \d+$/.test(l))) {
+    label = `Phase ${n}`;
+  } else {
+    label = `Week ${n}`;
+  }
+  currentProgram.weeks.push({ label, exercises: [] });
   currentWeekIdx = currentProgram.weeks.length - 1;
   renderWeekTabs();
   renderExercisesBuilder();
-  showToast(`Week ${n} added`);
+  showToast(`${label} added — rename it by tapping the label`);
 }
 
 function goBackToInfo() {
@@ -1971,6 +1992,18 @@ function exerciseBuilderHTML(ex, i) {
         <label class="form-label">Rest</label>
         <input class="form-input" type="text" placeholder="60s" value="${ex.rest || ''}"
           oninput="updateExercise(${i}, 'rest', this.value)">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Weight Recommendation</label>
+        <input class="form-input" type="text" placeholder="e.g. Light / 8–10 lbs, Moderate, Bodyweight" value="${ex.weight || ''}"
+          oninput="updateExercise(${i}, 'weight', this.value)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Superset Group</label>
+        <input class="form-input" type="text" placeholder="e.g. A, B, Superset 1" value="${ex.supersetGroup || ''}"
+          oninput="updateExercise(${i}, 'supersetGroup', this.value)" title="Exercises with the same group label are shown together as a superset">
       </div>
     </div>
 
@@ -2191,7 +2224,8 @@ function renderClientView(p, weekIdx) {
       `<div onclick="changeWeek(${i - clientWeekIdx})" style="width:${i===clientWeekIdx?'24px':'8px'};height:8px;border-radius:4px;background:${i===clientWeekIdx?'var(--accent)':'rgba(255,255,255,0.35)'};cursor:pointer;transition:all 0.3s"></div>`
     ).join('');
 
-    document.getElementById('client-week-label-text').textContent = week.label;
+    const isAB = /^Day [A-Z]$/.test(week.label);
+    document.getElementById('client-week-label-text').textContent = isAB ? `🔄 ${week.label}` : week.label;
     document.getElementById('week-prev-btn').style.opacity = clientWeekIdx === 0 ? '0.3' : '1';
     document.getElementById('week-next-btn').style.opacity = clientWeekIdx === p.weeks.length - 1 ? '0.3' : '1';
     document.getElementById('week-prev-btn2').style.display = clientWeekIdx === 0 ? 'none' : 'block';
@@ -2309,13 +2343,25 @@ function clientExerciseHTML(ex, i) {
   const stats = [];
   if (ex.sets) stats.push({ v: ex.sets, l: 'Sets' });
   if (ex.reps) stats.push({ v: ex.reps, l: 'Reps' });
-  if (ex.rest) stats.push({ v: ex.rest, l: 'Rest' });
+  if (ex.weight) stats.push({ v: ex.weight, l: 'Weight' });
+  else if (ex.rest) stats.push({ v: ex.rest, l: 'Rest' });
+  if (ex.weight && ex.rest) stats.push({ v: ex.rest, l: 'Rest' });
 
   const pId = clientProgram ? clientProgram.id : '';
   const wIdx = clientWeekIdx;
   const history = progressHistoryHTML(pId, wIdx, i);
 
-  return `<div class="ex-card">
+  // Superset header — show if this is start of a new superset group
+  const week = clientProgram && clientProgram.weeks ? clientProgram.weeks[wIdx] : null;
+  let supersetHeader = '';
+  if (ex.supersetGroup) {
+    const isFirst = !week || !week.exercises[i-1] || week.exercises[i-1].supersetGroup !== ex.supersetGroup;
+    if (isFirst) {
+      supersetHeader = `<div style="background:var(--accent);color:white;font-size:12px;font-weight:700;padding:6px 20px;letter-spacing:1px;text-transform:uppercase">⚡ Superset ${ex.supersetGroup} — do these back to back</div>`;
+    }
+  }
+
+  return `${supersetHeader}<div class="ex-card" style="${ex.supersetGroup ? 'border-left:4px solid var(--accent);' : ''}">
     <div class="ex-card-header">
       <div class="ex-card-num">${i + 1}</div>
       <div class="ex-card-info">
@@ -2324,6 +2370,7 @@ function clientExerciseHTML(ex, i) {
           ${ex.sets ? `<span class="ex-tag">${ex.sets} sets</span>` : ''}
           ${ex.reps ? `<span class="ex-tag">${ex.reps} reps</span>` : ''}
           ${ex.rest ? `<span class="ex-tag ex-tag-green">Rest ${ex.rest}</span>` : ''}
+          ${ex.weight ? `<span class="ex-tag" style="background:#e8f0e9;color:#4a7a50">🏋️ ${ex.weight}</span>` : ''}
         </div>
       </div>
     </div>
