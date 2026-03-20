@@ -300,10 +300,13 @@
     transition: all 0.2s;
     background: #faf7f4;
     position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+    width: 100%;
   }
   .upload-area:hover, .upload-area.drag { border-color: var(--accent); background: var(--accent-light); }
   .upload-area input[type=file] {
-    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    position: absolute; top: 0; left: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
   }
   .upload-area-icon { font-size: 24px; margin-bottom: 4px; }
   .upload-area-text { font-size: 13px; color: var(--text-light); }
@@ -1874,7 +1877,7 @@ function exerciseBuilderHTML(ex, i) {
     <div class="form-group" style="margin-bottom:0">
       <label class="form-label">Photo Upload (optional)</label>
       ${hasImage ? `<img id="ex-img-preview-${i}" src="${ex.imageData || ex.imageUrl}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px">` : `<img id="ex-img-preview-${i}" style="display:none;width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px">`}
-      <label class="upload-area" for="ex-img-file-${i}">
+      <label class="upload-area" for="ex-img-file-${i}" style="display:block;width:100%">
         <input type="file" id="ex-img-file-${i}" accept="image/*" onchange="handleImageUpload(${i}, this)">
         <div style="font-size:24px;margin-bottom:4px">📷</div>
         <div style="font-size:13px;font-weight:600;color:var(--text-light)">${hasImage ? 'Replace photo' : 'Upload a photo'}</div>
