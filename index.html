@@ -1055,12 +1055,14 @@
       <div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
         <button class="profile-tab active" onclick="showProfileTab('overview',this)">Overview</button>
         <button class="profile-tab" onclick="showProfileTab('programs',this)">Programs</button>
+        <button class="profile-tab" onclick="showProfileTab('progress',this)">Progress</button>
         <button class="profile-tab" onclick="showProfileTab('health',this)">Health Info</button>
         <button class="profile-tab" onclick="showProfileTab('notes',this)">Notes</button>
       </div>
 
       <div id="profile-tab-overview"></div>
       <div id="profile-tab-programs" style="display:none"></div>
+      <div id="profile-tab-progress" style="display:none"></div>
       <div id="profile-tab-health" style="display:none"></div>
       <div id="profile-tab-notes" style="display:none"></div>
     </div>
@@ -1597,6 +1599,8 @@ function programCardHTML(p) {
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn btn-sm btn-secondary" onclick="openProgramModal('${p.id}')">✏️</button>
+        <button class="btn btn-sm btn-secondary" onclick="duplicateProgram('${p.id}')" title="Duplicate">⧉</button>
+        <button class="btn btn-sm btn-secondary" onclick="exportProgramPDF('${p.id}')" title="Print / PDF">🖨️</button>
         <button class="btn btn-sm btn-primary" onclick="previewProgram('${p.id}')">Preview</button>
         <button class="btn btn-sm btn-danger" onclick="deleteProgram('${p.id}')">✕</button>
       </div>
@@ -1724,7 +1728,7 @@ function closeClientProfile() {
 }
 
 function showProfileTab(tab, el) {
-  ['overview','programs','health','notes'].forEach(t => {
+  ['overview','programs','progress','health','notes'].forEach(t => {
     document.getElementById('profile-tab-' + t).style.display = t === tab ? 'block' : 'none';
   });
   document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
@@ -1773,6 +1777,95 @@ function renderProfileTab(tab) {
       }`;
   }
 
+  if (tab === 'progress') {
+    // Gather all progress logs for this client across all programs/weeks
+    const clientPrograms = programs.filter(p =>
+      p.client === c.name || (p.assignments||[]).some(a => a.clientName === c.name)
+    );
+
+    let allLogs = [];
+    clientPrograms.forEach(p => {
+      const weeks = p.weeks || [];
+      weeks.forEach((w, wIdx) => {
+        w.exercises.forEach((ex, eIdx) => {
+          const key = `jwf_progress_${p.id}_w${wIdx}_e${eIdx}`;
+          const log = JSON.parse(localStorage.getItem(key) || '[]');
+          log.forEach(entry => {
+            allLogs.push({ programName: p.name, weekLabel: w.label, exerciseName: ex.name, ...entry });
+          });
+        });
+      });
+      // Also check assignments for this client
+      (p.assignments||[]).filter(a => a.clientName === c.name).forEach(a => {
+        const customWeeks = a.customWeeks || p.weeks || [];
+        customWeeks.forEach((w, wIdx) => {
+          w.exercises.forEach((ex, eIdx) => {
+            const key = `jwf_progress_${p.id}_w${wIdx}_e${eIdx}`;
+            const log = JSON.parse(localStorage.getItem(key) || '[]');
+            log.forEach(entry => {
+              if (!allLogs.find(l => l.programName === p.name && l.exerciseName === ex.name && l.date === entry.date)) {
+                allLogs.push({ programName: p.name, weekLabel: w.label, exerciseName: ex.name, ...entry });
+              }
+            });
+          });
+        });
+      });
+    });
+
+    allLogs.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    if (!allLogs.length) {
+      document.getElementById('profile-tab-progress').innerHTML = `
+        <div class="empty-state"><div class="empty-state-icon">📊</div><h3>No progress logged yet</h3><p>${c.name.split(' ')[0]} hasn't logged any sessions yet. Once they do, you'll see it here.</p></div>`;
+      return;
+    }
+
+    // Group by exercise for PRs
+    const byExercise = {};
+    allLogs.forEach(l => {
+      if (!byExercise[l.exerciseName]) byExercise[l.exerciseName] = [];
+      byExercise[l.exerciseName].push(l);
+    });
+
+    const prCards = Object.entries(byExercise).map(([name, logs]) => {
+      const weights = logs.map(l => parseFloat(l.weight)).filter(w => !isNaN(w));
+      const pr = weights.length ? Math.max(...weights) : null;
+      const latest = logs[0];
+      return `<div style="background:white;border-radius:10px;padding:12px 14px;border-left:3px solid var(--accent)">
+        <div style="font-weight:700;font-size:14px;margin-bottom:4px">${name}</div>
+        <div style="font-size:12px;color:var(--text-light)">
+          ${pr ? `🏆 Best: <strong>${pr}</strong> · ` : ''}
+          Last: ${latest.sets ? latest.sets+'×' : ''}${latest.reps||''}${latest.weight ? ' @ '+latest.weight : ''}
+          <span style="color:#b0a89e;margin-left:6px">${new Date(latest.date).toLocaleDateString('en-CA',{month:'short',day:'numeric'})}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    const recentLogs = allLogs.slice(0,10).map(l => `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid #f0ebe3">
+        <div>
+          <div style="font-weight:600;font-size:14px">${l.exerciseName}</div>
+          <div style="font-size:12px;color:var(--text-light)">${l.programName} · ${l.weekLabel}</div>
+          ${l.notes ? `<div style="font-size:11px;color:var(--accent);margin-top:2px">"${l.notes}"</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;margin-left:12px">
+          <div style="font-weight:700;font-size:13px">${l.sets ? l.sets+'×' : ''}${l.reps||''}${l.weight ? ' @ '+l.weight : ''}</div>
+          <div style="font-size:11px;color:var(--text-light)">${new Date(l.date).toLocaleDateString('en-CA',{month:'short',day:'numeric'})}</div>
+        </div>
+      </div>`).join('');
+
+    document.getElementById('profile-tab-progress').innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        <div class="bold" style="margin-bottom:12px">🏆 Personal Records</div>
+        <div style="display:flex;flex-direction:column;gap:8px">${prCards}</div>
+      </div>
+      <div class="card">
+        <div class="bold" style="margin-bottom:4px">📋 Recent Activity (${allLogs.length} entries)</div>
+        ${recentLogs}
+      </div>`;
+    return;
+  }
+
   if (tab === 'health') {
     document.getElementById('profile-tab-health').innerHTML = `
       <div class="card">
@@ -1805,12 +1898,30 @@ function renderProfileTab(tab) {
   }
 
   if (tab === 'notes') {
+    const sessionLogs = c.sessionLogs || [];
+    const sessionLogHTML = sessionLogs.length
+      ? sessionLogs.map((s, i) => `
+        <div style="background:#faf7f4;border-radius:8px;padding:10px 14px;margin-bottom:8px;position:relative">
+          <div style="font-size:11px;color:var(--text-light);margin-bottom:4px">${new Date(s.date).toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</div>
+          <div style="font-size:14px;line-height:1.5">${s.note}</div>
+          <button onclick="deleteSessionLog(${i})" style="position:absolute;top:8px;right:8px;background:none;border:none;color:#d0c8be;cursor:pointer;font-size:14px">✕</button>
+        </div>`).join('')
+      : `<div style="color:var(--text-light);font-size:13px;padding:8px 0">No session notes yet.</div>`;
+
     document.getElementById('profile-tab-notes').innerHTML = `
+      <div class="card" style="margin-bottom:16px">
+        <div class="bold" style="margin-bottom:12px">📋 Session Notes</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <textarea class="form-textarea" id="new-session-note" style="min-height:70px;flex:1" placeholder="e.g. Struggled with hip thrust — reduce weight next week. Great energy today."></textarea>
+          <button class="btn btn-primary" style="align-self:flex-end;white-space:nowrap" onclick="addSessionLog()">+ Log</button>
+        </div>
+        <div id="session-log-list">${sessionLogHTML}</div>
+      </div>
       <div class="card">
-        <div class="bold" style="margin-bottom:16px">📝 Session & Progress Notes</div>
+        <div class="bold" style="margin-bottom:16px">📝 General Notes</div>
         <div class="form-group">
           <label class="form-label">Running Notes</label>
-          <textarea class="form-textarea" id="client-running-notes" style="min-height:200px" placeholder="Progress observations, session feedback, things to remember...">${c.runningNotes||''}</textarea>
+          <textarea class="form-textarea" id="client-running-notes" style="min-height:120px" placeholder="Progress observations, things to remember...">${c.runningNotes||''}</textarea>
         </div>
         <div class="form-group">
           <label class="form-label">Goals & Targets</label>
@@ -1859,6 +1970,27 @@ function saveClientNotes() {
   c.joinDate = document.getElementById('client-join-date').value;
   localStorage.setItem('jwf_clients', JSON.stringify(clients));
   showToast('Notes saved ✓');
+}
+
+function addSessionLog() {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c) return;
+  const note = document.getElementById('new-session-note').value.trim();
+  if (!note) { showToast('Write a note first'); return; }
+  if (!c.sessionLogs) c.sessionLogs = [];
+  c.sessionLogs.unshift({ date: new Date().toISOString(), note });
+  localStorage.setItem('jwf_clients', JSON.stringify(clients));
+  document.getElementById('new-session-note').value = '';
+  renderProfileTab('notes');
+  showToast('Session note saved ✓');
+}
+
+function deleteSessionLog(idx) {
+  const c = clients.find(x => x.id === viewingClientId);
+  if (!c || !c.sessionLogs) return;
+  c.sessionLogs.splice(idx, 1);
+  localStorage.setItem('jwf_clients', JSON.stringify(clients));
+  renderProfileTab('notes');
 }
 
 function closeProgramForClient(clientName) {
@@ -2281,6 +2413,7 @@ function exerciseBuilderHTML(ex, i) {
   const hasImage = ex.imageData || ex.imageUrl;
   return `<div class="exercise-item" id="ex-item-${i}">
     <div class="exercise-item-header">
+      <div class="drag-handle" draggable="true" ondragstart="dragStart(event,${i})" ondragover="dragOver(event,${i})" ondrop="dragDrop(event,${i})" style="cursor:grab;padding:4px 6px;color:var(--text-light);font-size:18px;user-select:none" title="Drag to reorder">⠿</div>
       <div class="exercise-num">${i + 1}</div>
       <div class="exercise-name-display">${ex.name || 'New Exercise'}</div>
       <button class="btn btn-sm btn-danger" onclick="removeExercise(${i})">✕</button>
@@ -2363,6 +2496,27 @@ function addExercise() {
 
 function removeExercise(i) {
   currentWeekExercises().splice(i, 1);
+  renderExercisesBuilder();
+}
+
+// ── DRAG TO REORDER ──
+let dragFromIdx = null;
+function dragStart(e, i) {
+  dragFromIdx = i;
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.closest('.exercise-item').style.opacity = '0.5';
+}
+function dragOver(e, i) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+function dragDrop(e, i) {
+  e.preventDefault();
+  if (dragFromIdx === null || dragFromIdx === i) { dragFromIdx = null; return; }
+  const exs = currentWeekExercises();
+  const moved = exs.splice(dragFromIdx, 1)[0];
+  exs.splice(i, 0, moved);
+  dragFromIdx = null;
   renderExercisesBuilder();
 }
 
@@ -2583,6 +2737,89 @@ function deleteProgram(id) {
   renderDashboard();
   renderProgramsList();
   showToast('Program deleted');
+}
+
+function duplicateProgram(id) {
+  const p = programs.find(x => x.id === id);
+  if (!p) return;
+  const copy = JSON.parse(JSON.stringify(p)); // deep clone
+  copy.id = 'prog_' + Date.now();
+  copy.name = p.name + ' (Copy)';
+  copy.assignments = []; // fresh assignments
+  copy.createdAt = new Date().toISOString();
+  programs.unshift(copy);
+  localStorage.setItem('jwf_programs', JSON.stringify(programs));
+  renderDashboard();
+  renderProgramsList();
+  showToast(`"${copy.name}" created ✓`);
+}
+
+function exportProgramPDF(id) {
+  const p = programs.find(x => x.id === id);
+  if (!p) return;
+  const win = window.open('', '_blank');
+  const weeks = p.weeks || [{ label: 'Workout', exercises: p.exercises || [] }];
+  const weeksHTML = weeks.map(w => `
+    <div class="week-section">
+      <h2>${w.label}</h2>
+      <table>
+        <thead><tr><th>#</th><th>Exercise</th><th>Sets</th><th>Reps/Duration</th><th>Weight</th><th>Rest</th><th>Notes</th></tr></thead>
+        <tbody>
+          ${w.exercises.map((ex, i) => `
+            <tr ${ex.supersetGroup ? 'class="superset-row"' : ''}>
+              <td>${i+1}${ex.supersetGroup ? ` <span class="ss-badge">SS ${ex.supersetGroup}</span>` : ''}</td>
+              <td><strong>${ex.name}</strong></td>
+              <td>${ex.sets||'—'}</td>
+              <td>${ex.reps||'—'}</td>
+              <td>${ex.weight||'—'}</td>
+              <td>${ex.rest||'—'}</td>
+              <td>${ex.notes||''}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+
+  win.document.write(`<!DOCTYPE html><html><head><title>${p.name}</title>
+  <style>
+    body { font-family: -apple-system, Helvetica, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; color: #2d2420; }
+    .header { border-bottom: 3px solid #c8855a; padding-bottom: 16px; margin-bottom: 24px; display:flex; justify-content:space-between; align-items:flex-end; }
+    .header h1 { font-size: 24px; margin: 0; color: #2d2420; }
+    .header .meta { font-size: 13px; color: #7a6a5e; text-align:right; }
+    .badge { display:inline-block; background:#f0d5c0; color:#a66540; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; margin-right:6px; }
+    .week-section { margin-bottom: 32px; }
+    .week-section h2 { font-size: 16px; font-weight: 800; color: #c8855a; border-bottom: 2px solid #f0d5c0; padding-bottom: 6px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #2d2420; color: white; padding: 8px 10px; text-align: left; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+    td { padding: 8px 10px; border-bottom: 1px solid #ede6dc; vertical-align: top; }
+    tr:nth-child(even) td { background: #faf7f4; }
+    .superset-row td { background: #fef3ec !important; }
+    .ss-badge { background: #c8855a; color: white; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 700; }
+    .notes-section { margin-top: 24px; background: #f5f1ec; border-radius: 10px; padding: 16px; }
+    .notes-section h3 { font-size: 14px; margin-bottom: 8px; }
+    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #b0a89e; border-top: 1px solid #ede6dc; padding-top: 12px; }
+    @media print { body { margin: 20px; } }
+  </style></head><body>
+  <div class="header">
+    <div>
+      <h1>${p.name}</h1>
+      <div style="margin-top:6px">
+        <span class="badge">${p.focus}</span>
+        <span class="badge">${weeks.length} ${weeks.length===1?'workout':'weeks/days'}</span>
+        ${p.days ? `<span class="badge">${p.days}x/week</span>` : ''}
+      </div>
+    </div>
+    <div class="meta">
+      <div><strong>Jenn Wright Fitness</strong></div>
+      <div>jennwrightfitness.com</div>
+      <div>${new Date().toLocaleDateString('en-CA',{year:'numeric',month:'long',day:'numeric'})}</div>
+    </div>
+  </div>
+  ${p.notes ? `<div class="notes-section"><h3>📝 Program Notes</h3><p style="font-size:13px;line-height:1.6">${p.notes}</p></div>` : ''}
+  ${weeksHTML}
+  <div class="footer">Jenn Wright Fitness · Summerland, BC · jennwrightfitness.com</div>
+  <script>window.onload=()=>window.print()<\/script>
+  </body></html>`);
+  win.document.close();
 }
 
 function previewProgram(id) {
