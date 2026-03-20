@@ -1946,18 +1946,20 @@ function searchTemplates(query) {
 function loadFromTemplate(templateId) {
   const t = programs.find(p => p.id === templateId);
   if (!t) return;
-  // Deep clone weeks from template into current program
-  currentProgram.weeks = t.weeks.map(w => ({ ...w, exercises: w.exercises.map(e => ({...e})) }));
+  // Deep clone weeks from template
+  currentProgram.weeks = t.weeks
+    ? t.weeks.map(w => ({ ...w, exercises: w.exercises.map(e => ({...e})) }))
+    : [{ label: 'Week 1', exercises: (t.exercises||[]).map(e => ({...e})) }];
   currentProgram.focus = t.focus;
   currentProgram.days = t.days;
-  // Keep name field editable — just pre-fill if empty
-  const nameField = document.getElementById('prog-name');
-  if (!nameField.value.trim()) nameField.value = t.name;
+  // Always set the name to the template name — user can change it after
+  document.getElementById('prog-name').value = t.name;
   document.getElementById('prog-focus').value = t.focus || 'Full Body';
   document.getElementById('prog-days').value = t.days || '';
   document.getElementById('prog-notes').value = t.notes || '';
+  // Hide suggestions
   document.getElementById('template-start-box').style.display = 'none';
-  showToast(`Loaded from "${t.name}" — customise as needed`);
+  showToast(`✓ Loaded "${t.name}" — ${currentProgram.weeks.length} week(s), rename if needed`);
 }
 
 function goToExercises() {
