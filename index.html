@@ -1136,8 +1136,41 @@
       <button class="modal-close" onclick="closeProgramModal()">✕</button>
     </div>
 
+    <!-- Step 0: Template or Client-Specific -->
+    <div id="step-type">
+      <div style="margin-bottom:20px">
+        <div style="font-size:15px;color:var(--text-light);margin-bottom:16px">How do you want to save this program?</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div id="type-template-card" onclick="selectProgramType('template')"
+            style="border:2px solid #e0d6cc;border-radius:14px;padding:20px;cursor:pointer;text-align:center;transition:all 0.2s">
+            <div style="font-size:32px;margin-bottom:8px">📚</div>
+            <div style="font-weight:700;margin-bottom:4px">Template</div>
+            <div style="font-size:12px;color:var(--text-light);line-height:1.4">Reusable program you can assign to multiple clients</div>
+          </div>
+          <div id="type-client-card" onclick="selectProgramType('client')"
+            style="border:2px solid #e0d6cc;border-radius:14px;padding:20px;cursor:pointer;text-align:center;transition:all 0.2s">
+            <div style="font-size:32px;margin-bottom:8px">👤</div>
+            <div style="font-weight:700;margin-bottom:4px">Client-Specific</div>
+            <div style="font-size:12px;color:var(--text-light);line-height:1.4">One-off program built specifically for one client</div>
+          </div>
+        </div>
+      </div>
+      <div id="step-type-client-select" style="display:none">
+        <div class="form-group">
+          <label class="form-label">Select Client</label>
+          <select class="form-select" id="prog-type-client">
+            <option value="">— Select Client —</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
+        <button class="btn btn-secondary" onclick="closeProgramModal()">Cancel</button>
+        <button class="btn btn-primary" id="step-type-next" onclick="goToInfo()" style="display:none">Next →</button>
+      </div>
+    </div>
+
     <!-- Step 1: Program Info -->
-    <div id="step-info">
+    <div id="step-info" style="display:none">
       <div class="form-group">
         <label class="form-label">Program Name</label>
         <input class="form-input" id="prog-name" placeholder="e.g. Post-Partum Phase 1, Lower Body Strength...">
@@ -1518,12 +1551,18 @@ function programCardHTML(p) {
 
 function assignmentRowHTML(p, a) {
   const link = buildAssignmentLink(p.id, a);
-  return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;background:white;border-radius:8px;padding:8px 12px;flex-wrap:wrap">
-    <span style="font-size:13px;font-weight:600;flex:1">👤 ${a.clientName}</span>
-    <input readonly value="${link}" onclick="this.select()" style="flex:2;min-width:120px;padding:5px 8px;border:1px solid #e0d6cc;border-radius:6px;font-size:11px;font-family:monospace;background:#f9f6f2">
-    <button class="btn btn-sm btn-green" style="padding:5px 10px" onclick="copyAssignmentLink('${p.id}','${a.linkId}',this)">Copy</button>
-    <button class="btn btn-sm btn-secondary" style="padding:5px 10px" onclick="emailAssignment('${p.id}','${a.linkId}')">✉️</button>
-    <button class="btn btn-sm btn-danger" style="padding:5px 10px" onclick="removeAssignment('${p.id}','${a.linkId}')">✕</button>
+  const isCustom = !!(a.customWeeks);
+  return `<div style="margin-bottom:8px;background:white;border-radius:10px;padding:10px 12px;border:1px solid #ede6dc">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;flex:1">👤 ${a.clientName} ${isCustom ? '<span style="background:var(--accent-light);color:var(--accent-dark);font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin-left:4px">Customised</span>' : ''}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-secondary" style="padding:5px 10px" onclick="openProgramModal('${p.id}','${a.linkId}')">✏️ Edit</button>
+        <button class="btn btn-sm btn-green" style="padding:5px 10px" onclick="copyAssignmentLink('${p.id}','${a.linkId}',this)">Copy Link</button>
+        <button class="btn btn-sm btn-secondary" style="padding:5px 10px" onclick="emailAssignment('${p.id}','${a.linkId}')">✉️</button>
+        <button class="btn btn-sm btn-danger" style="padding:5px 10px" onclick="removeAssignment('${p.id}','${a.linkId}')">✕</button>
+      </div>
+    </div>
+    <input readonly value="${link}" onclick="this.select()" style="width:100%;padding:5px 8px;border:1px solid #e0d6cc;border-radius:6px;font-size:11px;font-family:monospace;background:#f9f6f2">
   </div>`;
 }
 
@@ -1792,39 +1831,85 @@ function emailIntakeForm() {
 }
 
 // ── PROGRAM MODAL ──
-function openProgramModal(id = null) {
-  editingProgramId = id;
-  document.getElementById('modal-program-title').textContent = id ? 'Edit Program' : 'New Program';
-  document.getElementById('step-info').style.display = 'block';
-  document.getElementById('step-exercises').style.display = 'none';
+let selectedProgramType = 'template'; // 'template' or 'client'
+let editingAssignment = null; // { programId, linkId } when editing an assignment copy
 
-  // Populate client dropdown
-  const sel = document.getElementById('prog-client');
-  sel.innerHTML = '<option value="">— Select Client —</option>' +
+function selectProgramType(type) {
+  selectedProgramType = type;
+  document.getElementById('type-template-card').style.border = type === 'template' ? '2px solid var(--accent)' : '2px solid #e0d6cc';
+  document.getElementById('type-template-card').style.background = type === 'template' ? 'var(--accent-light)' : 'white';
+  document.getElementById('type-client-card').style.border = type === 'client' ? '2px solid var(--accent)' : '2px solid #e0d6cc';
+  document.getElementById('type-client-card').style.background = type === 'client' ? 'var(--accent-light)' : 'white';
+  document.getElementById('step-type-client-select').style.display = type === 'client' ? 'block' : 'none';
+  document.getElementById('step-type-next').style.display = 'block';
+}
+
+function goToInfo() {
+  if (selectedProgramType === 'client') {
+    const clientVal = document.getElementById('prog-type-client').value;
+    if (!clientVal) { showToast('Select a client first'); return; }
+    currentProgram._clientSpecific = clientVal;
+  } else {
+    currentProgram._clientSpecific = null;
+  }
+  document.getElementById('step-type').style.display = 'none';
+  document.getElementById('step-info').style.display = 'block';
+}
+
+function openProgramModal(id = null, assignmentLinkId = null) {
+  editingProgramId = id;
+  editingAssignment = assignmentLinkId ? { programId: id, linkId: assignmentLinkId } : null;
+
+  // Populate client dropdowns
+  const clientOptions = '<option value="">— Select Client —</option>' +
     clients.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  document.getElementById('prog-client').innerHTML = clientOptions;
+  document.getElementById('prog-type-client').innerHTML = clientOptions;
 
   if (id) {
+    // Editing existing — skip type step
     const p = programs.find(x => x.id === id);
     if (p) {
-      document.getElementById('prog-name').value = p.name;
-      document.getElementById('prog-client').value = p.client || '';
-      document.getElementById('prog-focus').value = p.focus || 'Full Body';
-      document.getElementById('prog-days').value = p.days || 3;
-      document.getElementById('prog-notes').value = p.notes || '';
-      // Deep clone weeks
-      const weeks = p.weeks
-        ? p.weeks.map(w => ({ ...w, exercises: w.exercises.map(e => ({...e})) }))
-        : [{ label: 'Week 1', exercises: (p.exercises || []).map(e => ({...e})) }];
-      currentProgram = { ...p, weeks };
+      // If editing an assignment, load the assignment's custom data
+      const assignData = assignmentLinkId && p.assignments
+        ? p.assignments.find(a => a.linkId === assignmentLinkId)
+        : null;
+      const src = assignData && assignData.customWeeks ? { ...p, weeks: assignData.customWeeks, notes: assignData.customNotes || p.notes } : p;
+
+      document.getElementById('prog-name').value = src.name;
+      document.getElementById('prog-client').value = src.client || '';
+      document.getElementById('prog-focus').value = src.focus || 'Full Body';
+      document.getElementById('prog-days').value = src.days || 3;
+      document.getElementById('prog-notes').value = src.notes || '';
+      const weeks = src.weeks
+        ? src.weeks.map(w => ({ ...w, exercises: w.exercises.map(e => ({...e})) }))
+        : [{ label: 'Week 1', exercises: (src.exercises || []).map(e => ({...e})) }];
+      currentProgram = { ...src, weeks };
     }
+    document.getElementById('modal-program-title').textContent = assignmentLinkId
+      ? `Edit for ${(programs.find(x=>x.id===id)?.assignments||[]).find(a=>a.linkId===assignmentLinkId)?.clientName || 'Client'}`
+      : 'Edit Program';
+    document.getElementById('step-type').style.display = 'none';
+    document.getElementById('step-info').style.display = 'block';
   } else {
+    // New program — show type selector
+    document.getElementById('modal-program-title').textContent = 'New Program';
+    selectedProgramType = 'template';
+    document.getElementById('type-template-card').style.border = '2px solid #e0d6cc';
+    document.getElementById('type-template-card').style.background = 'white';
+    document.getElementById('type-client-card').style.border = '2px solid #e0d6cc';
+    document.getElementById('type-client-card').style.background = 'white';
+    document.getElementById('step-type-next').style.display = 'none';
+    document.getElementById('step-type-client-select').style.display = 'none';
     document.getElementById('prog-name').value = '';
     document.getElementById('prog-client').value = '';
     document.getElementById('prog-days').value = '';
     document.getElementById('prog-notes').value = '';
     currentProgram = { weeks: [{ label: 'Week 1', exercises: [] }] };
+    document.getElementById('step-type').style.display = 'block';
+    document.getElementById('step-info').style.display = 'none';
   }
-
+  document.getElementById('step-exercises').style.display = 'none';
   document.getElementById('modal-program').classList.add('active');
 }
 
@@ -1836,7 +1921,7 @@ function goToExercises() {
   const name = document.getElementById('prog-name').value.trim();
   if (!name) { showToast('Please enter a program name'); return; }
   currentProgram.name = name;
-  currentProgram.client = document.getElementById('prog-client').value;
+  currentProgram.client = currentProgram._clientSpecific || document.getElementById('prog-client').value || '';
   currentProgram.focus = document.getElementById('prog-focus').value;
   currentProgram.days = document.getElementById('prog-days').value || 3;
   currentProgram.notes = document.getElementById('prog-notes').value;
@@ -1902,6 +1987,7 @@ function addWeek() {
 function goBackToInfo() {
   document.getElementById('step-info').style.display = 'block';
   document.getElementById('step-exercises').style.display = 'none';
+  document.getElementById('step-type').style.display = 'none';
 }
 
 // ── EXERCISE BANK ──
@@ -2137,13 +2223,29 @@ function updateExercise(i, field, val) {
 
 // ── SAVE PROGRAM ──
 function saveProgram() {
-  // Validate at least one exercise in any week
   const anyExercise = currentProgram.weeks.some(w => w.exercises.some(e => e.name.trim()));
   if (!anyExercise) { showToast('Add at least one exercise'); return; }
-  // Clean empty exercise names per week
   currentProgram.weeks = currentProgram.weeks.map(w => ({
     ...w, exercises: w.exercises.filter(e => e.name.trim())
   }));
+
+  // Editing an assignment's custom copy
+  if (editingAssignment) {
+    const p = programs.find(x => x.id === editingAssignment.programId);
+    if (p) {
+      const a = (p.assignments || []).find(x => x.linkId === editingAssignment.linkId);
+      if (a) {
+        a.customWeeks = currentProgram.weeks;
+        a.customNotes = currentProgram.notes;
+      }
+    }
+    localStorage.setItem('jwf_programs', JSON.stringify(programs));
+    closeProgramModal();
+    renderDashboard();
+    renderProgramsList();
+    showToast('Client program updated ✓');
+    return;
+  }
 
   if (editingProgramId) {
     const idx = programs.findIndex(p => p.id === editingProgramId);
@@ -2151,6 +2253,15 @@ function saveProgram() {
   } else {
     currentProgram.id = 'prog_' + Date.now();
     currentProgram.createdAt = new Date().toISOString();
+    // If client-specific, auto-create an assignment
+    if (currentProgram._clientSpecific) {
+      currentProgram.assignments = [{
+        clientName: currentProgram._clientSpecific,
+        linkId: 'a_' + Date.now(),
+        assignedAt: new Date().toISOString()
+      }];
+    }
+    delete currentProgram._clientSpecific;
     programs.unshift(currentProgram);
   }
 
@@ -2617,7 +2728,14 @@ function checkUrlForProgram() {
       } else if (p.client) {
         clientName = p.client;
       }
-      const viewP = clientName ? { ...p, client: clientName } : p;
+      // Use customised weeks if this assignment has them
+      let viewP = clientName ? { ...p, client: clientName } : { ...p };
+      if (assignId && p.assignments) {
+        const a = p.assignments.find(x => x.linkId === assignId);
+        if (a && a.customWeeks) {
+          viewP = { ...viewP, weeks: a.customWeeks, notes: a.customNotes || p.notes };
+        }
+      }
       renderClientView(viewP);
       document.getElementById('client-back-bar').style.display = 'none';
       showScreen('client');
