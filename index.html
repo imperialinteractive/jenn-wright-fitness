@@ -253,6 +253,66 @@
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
 
+  /* ── EXERCISE SEARCH AUTOCOMPLETE ── */
+  .ex-search-wrap { position: relative; }
+  .ex-autocomplete {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: white;
+    border: 2px solid var(--accent);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 50;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  }
+  .ex-autocomplete-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid #f0ebe3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .ex-autocomplete-item:hover { background: var(--accent-light); }
+  .ex-autocomplete-item:last-child { border-bottom: none; }
+  .ex-autocomplete-meta { font-size: 11px; color: var(--text-light); }
+
+  /* ── FILE UPLOAD ── */
+  .upload-area {
+    border: 2px dashed #d0c8be;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #faf7f4;
+    position: relative;
+  }
+  .upload-area:hover, .upload-area.drag { border-color: var(--accent); background: var(--accent-light); }
+  .upload-area input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-area-icon { font-size: 24px; margin-bottom: 4px; }
+  .upload-area-text { font-size: 13px; color: var(--text-light); }
+  .upload-preview {
+    margin-top: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+  .upload-preview img { width: 100%; max-height: 160px; object-fit: cover; display: block; }
+  .upload-preview video { width: 100%; max-height: 160px; display: block; }
+  .upload-remove {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,0.6); color: white;
+    border: none; border-radius: 50%; width: 24px; height: 24px;
+    font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+
   /* ── EXERCISE BUILDER ── */
   .exercise-item {
     background: #faf7f4;
@@ -575,6 +635,46 @@
     white-space: nowrap;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── EXERCISE SEARCH DROPDOWN ── */
+  .ex-search-wrap { position: relative; }
+  .ex-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0; right: 0;
+    background: white;
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    z-index: 50;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    display: none;
+    overflow: hidden;
+  }
+  .ex-suggestion {
+    padding: 10px 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s;
+    font-size: 14px;
+  }
+  .ex-suggestion:hover { background: var(--accent-light); }
+  .ex-suggestion + .ex-suggestion { border-top: 1px solid #f0ebe3; }
+
+  /* ── IMAGE UPLOAD ── */
+  .upload-area {
+    border: 2px dashed #d4c8bc;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #faf7f4;
+  }
+  .upload-area:hover { border-color: var(--accent); background: var(--accent-light); }
+  .upload-area input[type=file] { display: none; }
 
   /* ── UTILITY ── */
   .flex { display: flex; }
@@ -1168,14 +1268,56 @@ function renderDashboard() {
   recent.innerHTML = programs.slice(0, 3).map(p => programCardHTML(p)).join('');
 }
 
-// ── RENDER PROGRAMS ──
+// ── RENDER PROGRAMS (grouped by focus) ──
+const FOCUS_ORDER = ['Full Body','Upper Body','Lower Body','Core','Cardio','Mobility','Pre/Post Natal','Kettlebell','Barre'];
+const FOCUS_ICONS = {'Full Body':'🏋️','Upper Body':'💪','Lower Body':'🦵','Core':'🎯','Cardio':'🏃','Mobility':'🧘','Pre/Post Natal':'🤰','Kettlebell':'🔔','Barre':'🩰'};
+
 function renderProgramsList() {
   const el = document.getElementById('programs-list');
   if (programs.length === 0) {
     el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">📋</div><h3>No programs yet</h3><p>Create your first program and send the link to a client.</p></div>`;
     return;
   }
-  el.innerHTML = programs.map(p => programCardHTML(p)).join('');
+
+  // Group by focus
+  const groups = {};
+  programs.forEach(p => {
+    const key = p.focus || 'Full Body';
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(p);
+  });
+
+  const orderedKeys = [...FOCUS_ORDER.filter(k => groups[k]), ...Object.keys(groups).filter(k => !FOCUS_ORDER.includes(k))];
+
+  el.innerHTML = orderedKeys.map(focus => {
+    const icon = FOCUS_ICONS[focus] || '📋';
+    const count = groups[focus].length;
+    const groupId = 'group-' + focus.replace(/\W+/g,'-');
+    return `
+      <div class="program-group" style="margin-bottom:8px">
+        <div class="program-group-header" onclick="toggleGroup('${groupId}')" style="display:flex;align-items:center;justify-content:space-between;background:white;border-radius:12px;padding:14px 18px;cursor:pointer;box-shadow:var(--shadow);user-select:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px">${icon}</span>
+            <div>
+              <div style="font-weight:700;font-size:15px">${focus}</div>
+              <div style="font-size:12px;color:var(--text-light)">${count} program${count !== 1 ? 's' : ''}</div>
+            </div>
+          </div>
+          <span id="${groupId}-chevron" style="font-size:18px;color:var(--text-light);transition:transform 0.2s">▾</span>
+        </div>
+        <div id="${groupId}" style="padding:6px 0 2px 0">
+          ${groups[focus].map(p => programCardHTML(p)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleGroup(id) {
+  const el = document.getElementById(id);
+  const chevron = document.getElementById(id + '-chevron');
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
 }
 
 function programCardHTML(p) {
@@ -1289,6 +1431,123 @@ function goBackToInfo() {
   document.getElementById('step-exercises').style.display = 'none';
 }
 
+// ── EXERCISE BANK ──
+const EXERCISE_BANK = [
+  // Lower Body
+  { name: 'Glute Bridge', sets:'3', reps:'15', rest:'60s', category:'Lower Body' },
+  { name: 'Hip Thrust', sets:'3', reps:'12', rest:'90s', category:'Lower Body' },
+  { name: 'Bodyweight Squat', sets:'3', reps:'15', rest:'60s', category:'Lower Body' },
+  { name: 'Goblet Squat', sets:'3', reps:'12', rest:'60s', category:'Lower Body' },
+  { name: 'Romanian Deadlift', sets:'3', reps:'10', rest:'90s', category:'Lower Body' },
+  { name: 'Reverse Lunge', sets:'3', reps:'10 each', rest:'60s', category:'Lower Body' },
+  { name: 'Walking Lunge', sets:'3', reps:'12 each', rest:'60s', category:'Lower Body' },
+  { name: 'Step-Up', sets:'3', reps:'10 each', rest:'60s', category:'Lower Body' },
+  { name: 'Side-Lying Clamshell', sets:'3', reps:'20 each', rest:'45s', category:'Lower Body' },
+  { name: 'Lateral Band Walk', sets:'3', reps:'15 each', rest:'45s', category:'Lower Body' },
+  { name: 'Sumo Squat', sets:'3', reps:'12', rest:'60s', category:'Lower Body' },
+  { name: 'Wall Sit', sets:'3', reps:'30s', rest:'60s', category:'Lower Body' },
+  { name: 'Hamstring Curl (machine)', sets:'3', reps:'12', rest:'60s', category:'Lower Body' },
+  { name: 'Leg Press', sets:'3', reps:'12', rest:'90s', category:'Lower Body' },
+  { name: 'Single-Leg Deadlift', sets:'3', reps:'10 each', rest:'60s', category:'Lower Body' },
+  // Upper Body
+  { name: 'Push-Up', sets:'3', reps:'10', rest:'60s', category:'Upper Body' },
+  { name: 'Modified Push-Up', sets:'3', reps:'12', rest:'60s', category:'Upper Body' },
+  { name: 'Dumbbell Shoulder Press', sets:'3', reps:'10', rest:'60s', category:'Upper Body' },
+  { name: 'Dumbbell Chest Press', sets:'3', reps:'10', rest:'60s', category:'Upper Body' },
+  { name: 'Dumbbell Row', sets:'3', reps:'12 each', rest:'60s', category:'Upper Body' },
+  { name: 'Lat Pulldown', sets:'3', reps:'12', rest:'60s', category:'Upper Body' },
+  { name: 'Seated Cable Row', sets:'3', reps:'12', rest:'60s', category:'Upper Body' },
+  { name: 'Bicep Curl', sets:'3', reps:'12', rest:'45s', category:'Upper Body' },
+  { name: 'Tricep Dip', sets:'3', reps:'10', rest:'45s', category:'Upper Body' },
+  { name: 'Tricep Pushdown', sets:'3', reps:'12', rest:'45s', category:'Upper Body' },
+  { name: 'Lateral Raise', sets:'3', reps:'12', rest:'45s', category:'Upper Body' },
+  { name: 'Front Raise', sets:'3', reps:'12', rest:'45s', category:'Upper Body' },
+  { name: 'Face Pull', sets:'3', reps:'15', rest:'45s', category:'Upper Body' },
+  { name: 'Band Pull-Apart', sets:'3', reps:'15', rest:'45s', category:'Upper Body' },
+  { name: 'Arnold Press', sets:'3', reps:'10', rest:'60s', category:'Upper Body' },
+  // Core
+  { name: 'Dead Bug', sets:'3', reps:'10 each', rest:'45s', category:'Core' },
+  { name: 'Bird Dog', sets:'3', reps:'10 each', rest:'45s', category:'Core' },
+  { name: 'Plank', sets:'3', reps:'30s', rest:'45s', category:'Core' },
+  { name: 'Side Plank', sets:'3', reps:'20s each', rest:'45s', category:'Core' },
+  { name: 'Pallof Press', sets:'3', reps:'12 each', rest:'45s', category:'Core' },
+  { name: 'Hollow Body Hold', sets:'3', reps:'20s', rest:'45s', category:'Core' },
+  { name: 'Bicycle Crunch', sets:'3', reps:'15 each', rest:'45s', category:'Core' },
+  { name: 'Russian Twist', sets:'3', reps:'12 each', rest:'45s', category:'Core' },
+  { name: 'Leg Raise', sets:'3', reps:'12', rest:'45s', category:'Core' },
+  // Full Body / Cardio
+  { name: 'Burpee', sets:'3', reps:'10', rest:'60s', category:'Full Body' },
+  { name: 'Mountain Climber', sets:'3', reps:'20', rest:'45s', category:'Full Body' },
+  { name: 'Jump Squat', sets:'3', reps:'10', rest:'60s', category:'Full Body' },
+  { name: 'Kettlebell Swing', sets:'4', reps:'15', rest:'60s', category:'Kettlebell' },
+  { name: 'Kettlebell Goblet Squat', sets:'3', reps:'12', rest:'60s', category:'Kettlebell' },
+  { name: 'Kettlebell Deadlift', sets:'3', reps:'10', rest:'60s', category:'Kettlebell' },
+  { name: 'Kettlebell Romanian Deadlift', sets:'3', reps:'10', rest:'60s', category:'Kettlebell' },
+  // Barre
+  { name: 'Parallel Plie Squat', sets:'3', reps:'20', rest:'30s', category:'Barre' },
+  { name: 'Turnout Plie', sets:'3', reps:'20', rest:'30s', category:'Barre' },
+  { name: 'Standing Arabesque', sets:'3', reps:'15 each', rest:'30s', category:'Barre' },
+  { name: 'Barre Seat Work', sets:'3', reps:'20', rest:'30s', category:'Barre' },
+  { name: 'Relevé', sets:'3', reps:'20', rest:'30s', category:'Barre' },
+  // Mobility
+  { name: 'Hip Flexor Stretch', sets:'2', reps:'30s each', rest:'—', category:'Mobility' },
+  { name: 'World's Greatest Stretch', sets:'2', reps:'5 each', rest:'—', category:'Mobility' },
+  { name: 'Thoracic Rotation', sets:'2', reps:'10 each', rest:'—', category:'Mobility' },
+  { name: 'Cat-Cow', sets:'2', reps:'10', rest:'—', category:'Mobility' },
+  { name: '90/90 Hip Stretch', sets:'2', reps:'30s each', rest:'—', category:'Mobility' },
+];
+
+// Custom exercises added by Jenn
+let customExercises = JSON.parse(localStorage.getItem('jwf_custom_exercises') || '[]');
+function getAllExercises() { return [...EXERCISE_BANK, ...customExercises]; }
+
+function searchExercises(query) {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase();
+  return getAllExercises().filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
+}
+
+function showExerciseSuggestions(i, query) {
+  const dropdown = document.getElementById(`ex-suggestions-${i}`);
+  const results = searchExercises(query);
+  if (!results.length) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = results.map(e =>
+    `<div class="ex-suggestion" onclick="selectExercise(${i}, ${JSON.stringify(e).replace(/"/g,'&quot;')})">
+      <span style="font-weight:600">${e.name}</span>
+      <span style="color:var(--text-light);font-size:12px">${e.category} · ${e.sets}×${e.reps}</span>
+    </div>`
+  ).join('');
+  dropdown.style.display = 'block';
+}
+
+function selectExercise(i, ex) {
+  currentProgram.exercises[i] = { ...currentProgram.exercises[i], ...ex, imageUrl: currentProgram.exercises[i].imageUrl || '', videoUrl: currentProgram.exercises[i].videoUrl || '', imageData: currentProgram.exercises[i].imageData || '' };
+  renderExercisesBuilder();
+  // scroll back
+  setTimeout(() => {
+    const el = document.getElementById(`ex-item-${i}`);
+    if (el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 50);
+}
+
+function handleImageUpload(i, input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { showToast('Image too large — max 5MB'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentProgram.exercises[i].imageData = e.target.result;
+    currentProgram.exercises[i].imageUrl = '';
+    const preview = document.getElementById(`ex-img-preview-${i}`);
+    if (preview) {
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+    }
+    showToast('Image uploaded ✓');
+  };
+  reader.readAsDataURL(file);
+}
+
 // ── EXERCISE BUILDER ──
 function renderExercisesBuilder() {
   const el = document.getElementById('exercises-builder');
@@ -1301,17 +1560,25 @@ function renderExercisesBuilder() {
 }
 
 function exerciseBuilderHTML(ex, i) {
+  const hasImage = ex.imageData || ex.imageUrl;
   return `<div class="exercise-item" id="ex-item-${i}">
     <div class="exercise-item-header">
       <div class="exercise-num">${i + 1}</div>
       <div class="exercise-name-display">${ex.name || 'New Exercise'}</div>
       <button class="btn btn-sm btn-danger" onclick="removeExercise(${i})">✕</button>
     </div>
+
     <div class="form-group">
       <label class="form-label">Exercise Name</label>
-      <input class="form-input" placeholder="e.g. Glute Bridge, Squat, Push-Up..." value="${ex.name || ''}"
-        oninput="updateExercise(${i}, 'name', this.value)">
+      <div class="ex-search-wrap">
+        <input class="form-input" id="ex-name-${i}" placeholder="Type to search exercise bank..." value="${ex.name || ''}"
+          oninput="updateExercise(${i}, 'name', this.value); showExerciseSuggestions(${i}, this.value)"
+          onblur="setTimeout(()=>{ const d=document.getElementById('ex-suggestions-${i}'); if(d) d.style.display='none'; },200)"
+          autocomplete="off">
+        <div class="ex-suggestions" id="ex-suggestions-${i}"></div>
+      </div>
     </div>
+
     <div class="form-row-3">
       <div class="form-group">
         <label class="form-label">Sets</label>
@@ -1329,17 +1596,25 @@ function exerciseBuilderHTML(ex, i) {
           oninput="updateExercise(${i}, 'rest', this.value)">
       </div>
     </div>
+
     <div class="form-group">
       <label class="form-label">YouTube / Video Link (optional)</label>
       <input class="form-input" type="url" placeholder="https://youtube.com/watch?v=..." value="${ex.videoUrl || ''}"
         oninput="updateExercise(${i}, 'videoUrl', this.value)">
     </div>
-    <div class="form-group">
-      <label class="form-label">Image URL (optional)</label>
-      <input class="form-input" type="url" placeholder="https://..." value="${ex.imageUrl || ''}"
-        oninput="updateExercise(${i}, 'imageUrl', this.value)">
-    </div>
+
     <div class="form-group" style="margin-bottom:0">
+      <label class="form-label">Photo Upload (optional)</label>
+      ${hasImage ? `<img id="ex-img-preview-${i}" src="${ex.imageData || ex.imageUrl}" style="width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px">` : `<img id="ex-img-preview-${i}" style="display:none;width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-bottom:8px">`}
+      <label class="upload-area" for="ex-img-file-${i}">
+        <input type="file" id="ex-img-file-${i}" accept="image/*" onchange="handleImageUpload(${i}, this)">
+        <div style="font-size:24px;margin-bottom:4px">📷</div>
+        <div style="font-size:13px;font-weight:600;color:var(--text-light)">${hasImage ? 'Replace photo' : 'Upload a photo'}</div>
+        <div style="font-size:11px;color:var(--text-light);margin-top:2px">JPG, PNG · max 5MB</div>
+      </label>
+    </div>
+
+    <div class="form-group" style="margin-top:12px;margin-bottom:0">
       <label class="form-label">Coaching Notes (shown to client)</label>
       <textarea class="form-textarea" style="min-height:64px" placeholder="Cues, tips, what to focus on..."
         oninput="updateExercise(${i}, 'notes', this.value)">${ex.notes || ''}</textarea>
@@ -1348,7 +1623,7 @@ function exerciseBuilderHTML(ex, i) {
 }
 
 function addExercise() {
-  currentProgram.exercises.push({ name: '', sets: '', reps: '', rest: '60s', videoUrl: '', imageUrl: '', notes: '' });
+  currentProgram.exercises.push({ name: '', sets: '', reps: '', rest: '60s', videoUrl: '', imageUrl: '', imageData: '', notes: '' });
   renderExercisesBuilder();
   setTimeout(() => {
     const items = document.querySelectorAll('.exercise-item');
@@ -1490,8 +1765,8 @@ function clientExerciseHTML(ex, i) {
         <a href="${ex.videoUrl}" target="_blank" class="btn btn-ghost btn-sm">▶ Watch Video</a>
       </div>`;
     }
-  } else if (ex.imageUrl) {
-    mediaHTML = `<div class="ex-card-media"><img src="${ex.imageUrl}" alt="${ex.name}" onerror="this.parentElement.style.display='none'"></div>`;
+  } else if (ex.imageData || ex.imageUrl) {
+    mediaHTML = `<div class="ex-card-media"><img src="${ex.imageData || ex.imageUrl}" alt="${ex.name}" onerror="this.parentElement.style.display='none'"></div>`;
   }
 
   const stats = [];
