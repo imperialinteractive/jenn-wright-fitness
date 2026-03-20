@@ -1230,7 +1230,22 @@
           <div class="structure-card" data-structure="ab" onclick="selectStructure('ab',this)">
             <div style="font-size:22px;margin-bottom:4px">🔄</div>
             <div style="font-weight:700;font-size:13px">A/B Days</div>
-            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Day A, Day B within a week</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Day A + Day B alternating</div>
+          </div>
+          <div class="structure-card" data-structure="upperlower" onclick="selectStructure('upperlower',this)">
+            <div style="font-size:22px;margin-bottom:4px">💪🦵</div>
+            <div style="font-weight:700;font-size:13px">Upper/Lower</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Upper + Lower split</div>
+          </div>
+          <div class="structure-card" data-structure="phase" onclick="selectStructure('phase',this)">
+            <div style="font-size:22px;margin-bottom:4px">📈</div>
+            <div style="font-weight:700;font-size:13px">Phase-Based</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Phase 1 → 2 → 3</div>
+          </div>
+          <div class="structure-card" data-structure="circuit" onclick="selectStructure('circuit',this)">
+            <div style="font-size:22px;margin-bottom:4px">⏱️</div>
+            <div style="font-weight:700;font-size:13px">Circuit</div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:2px;line-height:1.3">Timed — 30s on/off</div>
           </div>
         </div>
         <div id="structure-hint" style="font-size:12px;color:var(--text-light);margin-top:8px;padding:8px 12px;background:#f5f1ec;border-radius:8px">
@@ -1265,7 +1280,7 @@
 
       <div style="margin-bottom:12px">
         <div class="bold" style="margin-bottom:2px">✏️ Exercises — <span id="current-week-label">Week 1</span></div>
-        <div class="text-sm text-muted">Search exercise bank · add weight recommendation · group into supersets.</div>
+        <div class="text-sm text-muted" id="builder-hint">Search exercise bank · add weight recommendation · group into supersets.</div>
       </div>
 
       <div id="exercises-builder"></div>
@@ -1888,9 +1903,12 @@ let selectedProgramType = 'template';
 let selectedStructure = 'single';
 
 const STRUCTURE_HINTS = {
-  single: 'One workout program — client gets a single page with all exercises.',
-  weekly: 'Progressive program — build Week 1, Week 2, Week 3 etc. Client navigates forward each week.',
-  ab: 'Alternating days — build Day A and Day B. Client alternates between them each session.'
+  single: 'One workout — client gets a single page with all exercises.',
+  weekly: 'Progressive — build Week 1, Week 2, Week 3. Client navigates forward each week.',
+  ab: 'Alternating days — Day A and Day B pre-built. Client alternates each session.',
+  upperlower: 'Two-day split — Upper Body day + Lower Body day. Great for 4-day/week clients.',
+  phase: 'Long-term periodization — Phase 1 (Foundation), Phase 2 (Build), Phase 3 (Peak).',
+  circuit: 'Timed bootcamp-style — exercises use duration (30s, 45s) instead of sets/reps. Rest between rounds.'
 };
 
 function selectStructure(type, el) {
@@ -2041,14 +2059,15 @@ function goToExercises() {
 
   // Migrate old single-week programs to weeks array, or init from structure
   if (!currentProgram.weeks || currentProgram.weeks.length === 0) {
-    if (selectedStructure === 'ab') {
-      currentProgram.weeks = [
-        { label: 'Day A', exercises: [] },
-        { label: 'Day B', exercises: [] }
-      ];
-    } else {
-      currentProgram.weeks = [{ label: selectedStructure === 'weekly' ? 'Week 1' : 'Workout', exercises: currentProgram.exercises || [] }];
-    }
+    const INIT_WEEKS = {
+      single:     [{ label: 'Workout', exercises: [] }],
+      weekly:     [{ label: 'Week 1', exercises: [] }],
+      ab:         [{ label: 'Day A', exercises: [] }, { label: 'Day B', exercises: [] }],
+      upperlower: [{ label: 'Upper Body', exercises: [] }, { label: 'Lower Body', exercises: [] }],
+      phase:      [{ label: 'Phase 1 — Foundation', exercises: [] }],
+      circuit:    [{ label: 'Circuit 1', exercises: [] }],
+    };
+    currentProgram.weeks = (INIT_WEEKS[selectedStructure] || INIT_WEEKS.single).map(w => ({...w, exercises: []}));
     currentProgram.structure = selectedStructure;
     delete currentProgram.exercises;
   }
@@ -2066,6 +2085,19 @@ function renderWeekTabs() {
   tabs.innerHTML = currentProgram.weeks.map((w, i) =>
     `<button onclick="switchBuilderWeek(${i})" style="padding:7px 16px;border-radius:20px;border:2px solid ${i===currentWeekIdx?'var(--accent)':'#e0d6cc'};background:${i===currentWeekIdx?'var(--accent)':'white'};color:${i===currentWeekIdx?'white':'var(--text)'};font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s">${w.label}</button>`
   ).join('');
+  // Circuit hint
+  const hintEl = document.getElementById('builder-hint');
+  if (hintEl) {
+    if (currentProgram.structure === 'circuit') {
+      hintEl.textContent = '⏱️ Circuit style — use Duration (e.g. 30s, 45s) instead of Reps. Sets = rounds.';
+      hintEl.style.color = 'var(--accent)';
+      hintEl.style.fontWeight = '600';
+    } else {
+      hintEl.textContent = 'Search exercise bank · add weight recommendation · group into supersets.';
+      hintEl.style.color = '';
+      hintEl.style.fontWeight = '';
+    }
+  }
   // Editable week label
   const labelWrap = document.getElementById('current-week-label');
   labelWrap.innerHTML = `<input value="${currentProgram.weeks[currentWeekIdx].label}"
@@ -2089,14 +2121,15 @@ function switchBuilderWeek(i) {
 function addWeek() {
   const structure = currentProgram.structure || selectedStructure || 'weekly';
   const n = currentProgram.weeks.length + 1;
-  let label;
-  if (structure === 'ab') {
-    label = `Day ${String.fromCharCode(64 + n)}`; // Day A, B, C...
-  } else if (structure === 'single') {
-    label = `Variation ${n}`;
-  } else {
-    label = `Week ${n}`;
-  }
+  const NEXT_LABELS = {
+    single:     () => `Variation ${n}`,
+    weekly:     () => `Week ${n}`,
+    ab:         () => `Day ${String.fromCharCode(64 + n)}`,
+    upperlower: () => n % 2 === 1 ? `Upper Body ${Math.ceil(n/2)}` : `Lower Body ${Math.ceil(n/2)}`,
+    phase:      () => n === 2 ? 'Phase 2 — Build' : n === 3 ? 'Phase 3 — Peak' : `Phase ${n}`,
+    circuit:    () => `Circuit ${n}`,
+  };
+  const label = (NEXT_LABELS[structure] || NEXT_LABELS.weekly)();
   currentProgram.weeks.push({ label, exercises: [] });
   currentWeekIdx = currentProgram.weeks.length - 1;
   renderWeekTabs();
@@ -2608,11 +2641,18 @@ function renderClientView(p, weekIdx) {
     ).join('');
 
     const structure = p.structure || 'weekly';
-    const isAB = structure === 'ab' || /^Day [A-Z]/.test(week.label);
-    document.getElementById('client-week-label-text').textContent = isAB ? `🔄 ${week.label}` : week.label;
-    // Update nav button labels
-    const prevLabel = isAB ? '‹ Prev Day' : '‹ Prev Week';
-    const nextLabel = isAB ? 'Next Day ›' : 'Next Week ›';
+    const NAV_LABELS = {
+      single:     ['‹ Prev', 'Next ›'],
+      weekly:     ['‹ Prev Week', 'Next Week ›'],
+      ab:         ['‹ Prev Day', 'Next Day ›'],
+      upperlower: ['‹ Upper/Lower', 'Upper/Lower ›'],
+      phase:      ['‹ Prev Phase', 'Next Phase ›'],
+      circuit:    ['‹ Prev Circuit', 'Next Circuit ›'],
+    };
+    const [prevLabel, nextLabel] = NAV_LABELS[structure] || NAV_LABELS.weekly;
+    const WEEK_ICONS = { ab:'🔄', upperlower:'💪', phase:'📈', circuit:'⏱️', weekly:'📅', single:'' };
+    const icon = WEEK_ICONS[structure] || '';
+    document.getElementById('client-week-label-text').textContent = `${icon} ${week.label}`.trim();
     document.getElementById('week-prev-btn').textContent = prevLabel;
     document.getElementById('week-next-btn').textContent = nextLabel;
     document.getElementById('week-prev-btn2').textContent = prevLabel;
