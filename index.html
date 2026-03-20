@@ -1308,7 +1308,7 @@
       <div class="modal-title">Assign Program</div>
       <button class="modal-close" onclick="closeAssignModal()">✕</button>
     </div>
-    <p class="text-sm text-muted" style="margin-bottom:16px">Select a client to assign this program to. They'll get their own unique link.</p>
+    <p class="text-sm text-muted" style="margin-bottom:16px">Assign to any client — each gets their own personalised copy with unique weights & reps. You can assign to multiple clients.</p>
     <div class="form-group">
       <label class="form-label">Client</label>
       <select class="form-select" id="assign-client-select">
@@ -1898,8 +1898,11 @@ function openProgramModal(id = null, assignmentLinkId = null) {
         : [{ label: 'Week 1', exercises: (src.exercises || []).map(e => ({...e})) }];
       currentProgram = { ...src, weeks };
     }
-    document.getElementById('modal-program-title').textContent = assignmentLinkId
-      ? `Edit for ${(programs.find(x=>x.id===id)?.assignments||[]).find(a=>a.linkId===assignmentLinkId)?.clientName || 'Client'}`
+    const assignedClient = assignmentLinkId
+      ? (programs.find(x=>x.id===id)?.assignments||[]).find(a=>a.linkId===assignmentLinkId)?.clientName
+      : null;
+    document.getElementById('modal-program-title').textContent = assignedClient
+      ? `✏️ Customise for ${assignedClient.split(' ')[0]}`
       : 'Edit Program';
     document.getElementById('step-type').style.display = 'none';
     document.getElementById('step-info').style.display = 'block';
@@ -2445,10 +2448,15 @@ function confirmAssign() {
   closeAssignModal();
   renderProgramsList();
   renderDashboard();
-  // Show the link
-  lastSavedProgramId = p.id;
-  lastAssignmentId = assignment.linkId;
-  openAssignShareModal(p, assignment);
+
+  // Ask: customise now or just get the link?
+  if (confirm(`Assigned to ${clientName}! ✓\n\nWould you like to customise the weights & reps for ${clientName.split(' ')[0]} now?`)) {
+    openProgramModal(p.id, assignment.linkId);
+  } else {
+    lastSavedProgramId = p.id;
+    lastAssignmentId = assignment.linkId;
+    openAssignShareModal(p, assignment);
+  }
 }
 
 let lastAssignmentId = null;
