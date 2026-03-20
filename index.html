@@ -1487,10 +1487,7 @@ function seedDemoData() {
 
   clients = [{ id: 'c_1', name: 'Sarah Johnson', email: 'sarah@email.com', notes: 'Post-partum, cleared at 8 weeks', joinDate: new Date().toISOString().split('T')[0] }];
   localStorage.setItem('jwf_clients', JSON.stringify(clients));
-  renderDashboard();
-  renderProgramsList();
-  renderClientsList();
-  showToast('Demo program restored ✓');
+  // DOM not ready yet when called at parse time — renders happen in init()
 }
 
 const hasDemoProgram = programs.some(p => p.name && p.name.includes('Post-Partum Lower Body'));
@@ -3296,6 +3293,12 @@ function init() {
   if (!checkUrlForProgram()) {
     showAdminIfAuthed();
     setGreeting();
+  }
+  // Render lists now that DOM is ready (in case seedDemoData ran at parse time)
+  if (isAuthed()) {
+    renderDashboard();
+    renderProgramsList();
+    renderClientsList();
   }
 }
 
