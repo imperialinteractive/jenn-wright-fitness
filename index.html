@@ -992,7 +992,7 @@
   </div>
 
   <!-- Week nav bar -->
-  <div id="client-week-nav" style="display:none;background:var(--dark);padding:12px 20px;align-items:center;justify-content:space-between;gap:12px">
+  <div id="client-week-nav" style="display:none;background:var(--dark);padding:12px 20px;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:90">
     <button id="week-prev-btn" onclick="changeWeek(-1)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s">‹ Prev</button>
     <div id="week-dots" style="display:flex;gap:8px;align-items:center"></div>
     <button id="week-next-btn" onclick="changeWeek(1)" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:all 0.2s">Next ›</button>
