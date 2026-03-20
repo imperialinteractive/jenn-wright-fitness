@@ -1126,8 +1126,9 @@
         <button class="btn btn-green" onclick="copyShareLink()">Copy</button>
       </div>
     </div>
-    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-secondary" onclick="closeShareModal()">Close</button>
+      <button class="btn btn-green" onclick="emailClientLink()">✉️ Email to Client</button>
       <button class="btn btn-primary" onclick="previewClient()">Preview as Client →</button>
     </div>
   </div>
@@ -1333,6 +1334,7 @@ function programCardHTML(p) {
         </div>
       </div>
       <div class="program-card-actions">
+        <button class="btn btn-sm btn-green" onclick="quickEmailLink('${p.id}')">✉️</button>
         <button class="btn btn-sm btn-primary" onclick="previewProgram('${p.id}')">Preview</button>
         <button class="btn btn-sm btn-danger" onclick="deleteProgram('${p.id}')">Delete</button>
       </div>
@@ -1694,6 +1696,37 @@ function buildClientLink(id) {
 function copyShareLink() {
   const input = document.getElementById('share-link-display');
   navigator.clipboard.writeText(input.value).then(() => showToast('Link copied! 📎'));
+}
+
+function emailClientLink() {
+  const p = programs.find(x => x.id === lastSavedProgramId);
+  if (!p) return;
+  const link = buildClientLink(p.id);
+  const clientEmail = p.client ? (clients.find(c => c.name === p.client) || {}).email || '' : '';
+  const subject = encodeURIComponent(`Your Program from Jenn Wright Fitness — ${p.name}`);
+  const body = encodeURIComponent(
+`Hi ${p.client || 'there'},
+
+Your exercise program is ready! Tap the link below to view it anytime — no login needed.
+
+👉 ${link}
+
+Program: ${p.name}
+Focus: ${p.focus}${p.week ? ` · Week ${p.week}` : ''}
+Exercises: ${p.exercises.length}
+${p.notes ? `\nNotes from Jenn:\n${p.notes}\n` : ''}
+Don't hesitate to reach out if you have any questions!
+
+Jenn Wright
+Jenn Wright Fitness — Summerland, BC
+jennwrightfitness.com`
+  );
+  window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
+}
+
+function quickEmailLink(id) {
+  lastSavedProgramId = id;
+  emailClientLink();
 }
 
 function copyLink(id, btn) {
