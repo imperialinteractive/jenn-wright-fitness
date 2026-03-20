@@ -849,6 +849,10 @@
      CLIENT VIEW — What the client sees
 ════════════════════════════════════════════ -->
 <div id="screen-client" class="screen">
+  <div id="client-back-bar" style="display:none;background:var(--dark);padding:8px 16px">
+    <button onclick="showScreen('admin');renderDashboard();" style="background:rgba(255,255,255,0.15);border:none;color:white;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">← Back to Dashboard</button>
+  </div>
+
   <div class="client-header">
     <div class="client-header-logo">🏋️ Jenn Wright Fitness</div>
     <h2 id="client-program-name">Your Program</h2>
@@ -1440,6 +1444,7 @@ function previewClient() {
   const p = programs.find(x => x.id === id);
   if (!p) return;
   renderClientView(p);
+  document.getElementById('client-back-bar').style.display = 'block';
   showScreen('client');
 }
 
@@ -1565,6 +1570,7 @@ function checkUrlForProgram() {
     const p = programs.find(x => x.id === id);
     if (p) {
       renderClientView(p);
+      document.getElementById('client-back-bar').style.display = 'none';
       showScreen('client');
       return true;
     }
