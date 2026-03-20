@@ -2555,7 +2555,7 @@ function renderClientView(p, weekIdx) {
   }
 
   const list = document.getElementById('client-exercises-list');
-  list.innerHTML = week.exercises.map((ex, i) => clientExerciseHTML(ex, i)).join('');
+  list.innerHTML = renderExercisesGrouped(week.exercises, pId, wIdx);
   // Scroll exercises back to top on week change
   list.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -2637,7 +2637,57 @@ function completeSession() {
   setTimeout(() => { banner.style.display = 'none'; }, 4000);
 }
 
-function clientExerciseHTML(ex, i) {
+function renderExercisesGrouped(exercises, pId, wIdx) {
+  // Group exercises: supersets become bundles, standalone stay solo
+  const groups = [];
+  exercises.forEach((ex, i) => {
+    if (ex.supersetGroup) {
+      const last = groups[groups.length - 1];
+      if (last && last.type === 'superset' && last.group === ex.supersetGroup) {
+        last.exercises.push({ ex, i });
+      } else {
+        groups.push({ type: 'superset', group: ex.supersetGroup, exercises: [{ ex, i }] });
+      }
+    } else {
+      groups.push({ type: 'solo', exercises: [{ ex, i }] });
+    }
+  });
+
+  return groups.map(g => {
+    if (g.type === 'solo') {
+      return clientExerciseHTML(g.exercises[0].ex, g.exercises[0].i, pId, wIdx);
+    }
+    // Superset bundle
+    const restTime = g.exercises.find(e => e.ex.rest && e.ex.rest !== '—')?.ex.rest || '60s';
+    const sets = g.exercises[0]?.ex.sets || '';
+    return `
+      <div style="background:white;border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px;border:2px solid var(--accent)">
+        <div style="background:var(--accent);padding:12px 20px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="color:white;font-weight:800;font-size:15px">⚡ Superset ${g.group}</div>
+            <div style="color:rgba(255,255,255,0.8);font-size:12px;margin-top:2px">Do all exercises back to back — then rest</div>
+          </div>
+          <div style="text-align:right">
+            ${sets ? `<div style="color:white;font-weight:800;font-size:18px">${sets}</div><div style="color:rgba(255,255,255,0.7);font-size:11px;text-transform:uppercase">Sets</div>` : ''}
+          </div>
+        </div>
+        ${g.exercises.map(({ex, i}, idx) => `
+          <div style="${idx < g.exercises.length - 1 ? 'border-bottom:2px dashed #f0ebe3' : ''}">
+            ${clientExerciseHTML(ex, i, pId, wIdx, true)}
+          </div>
+        `).join('')}
+        <div style="background:#fef3ec;padding:12px 20px;display:flex;align-items:center;gap:8px;border-top:2px solid var(--accent-light)">
+          <span style="font-size:20px">⏱️</span>
+          <div>
+            <div style="font-weight:700;font-size:14px">Rest ${restTime} after completing all exercises above</div>
+            <div style="font-size:12px;color:var(--text-light)">Then repeat for next set</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function clientExerciseHTML(ex, i, pId, wIdx, inSuperset) {
   let mediaHTML = '';
   if (ex.videoUrl) {
     const ytId = getYouTubeId(ex.videoUrl);
@@ -2665,21 +2715,12 @@ function clientExerciseHTML(ex, i) {
   else if (ex.rest) stats.push({ v: ex.rest, l: 'Rest' });
   if (ex.weight && ex.rest) stats.push({ v: ex.rest, l: 'Rest' });
 
-  const pId = clientProgram ? clientProgram.id : '';
-  const wIdx = clientWeekIdx;
+  pId = pId || (clientProgram ? clientProgram.id : '');
+  wIdx = (wIdx !== undefined) ? wIdx : clientWeekIdx;
   const history = progressHistoryHTML(pId, wIdx, i);
+  const cardStyle = inSuperset ? 'border-radius:0;box-shadow:none;margin-bottom:0;' : '';
 
-  // Superset header — show if this is start of a new superset group
-  const week = clientProgram && clientProgram.weeks ? clientProgram.weeks[wIdx] : null;
-  let supersetHeader = '';
-  if (ex.supersetGroup) {
-    const isFirst = !week || !week.exercises[i-1] || week.exercises[i-1].supersetGroup !== ex.supersetGroup;
-    if (isFirst) {
-      supersetHeader = `<div style="background:var(--accent);color:white;font-size:12px;font-weight:700;padding:6px 20px;letter-spacing:1px;text-transform:uppercase">⚡ Superset ${ex.supersetGroup} — do these back to back</div>`;
-    }
-  }
-
-  return `${supersetHeader}<div class="ex-card" style="${ex.supersetGroup ? 'border-left:4px solid var(--accent);' : ''}">
+  return `<div class="ex-card" style="${cardStyle}">
     <div class="ex-card-header">
       <div class="ex-card-num">${i + 1}</div>
       <div class="ex-card-info">
@@ -2687,7 +2728,7 @@ function clientExerciseHTML(ex, i) {
         <div class="ex-card-tags">
           ${ex.sets ? `<span class="ex-tag">${ex.sets} sets</span>` : ''}
           ${ex.reps ? `<span class="ex-tag">${ex.reps} reps</span>` : ''}
-          ${ex.rest ? `<span class="ex-tag ex-tag-green">Rest ${ex.rest}</span>` : ''}
+          ${ex.rest && !ex.supersetGroup ? `<span class="ex-tag ex-tag-green">Rest ${ex.rest}</span>` : ''}
           ${ex.weight ? `<span class="ex-tag" style="background:#e8f0e9;color:#4a7a50">🏋️ ${ex.weight}</span>` : ''}
         </div>
       </div>
